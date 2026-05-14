@@ -109,6 +109,7 @@ pub fn run() {
             commands::terminal::terminal_input,
             commands::terminal::terminal_resize,
             commands::terminal::list_sessions,
+            commands::terminal::get_session_state,
             commands::vault::vault_status,
             commands::vault::vault_unlock,
             commands::vault::vault_lock,
