@@ -1,0 +1,19 @@
+{
+  "identifier": "default",
+  "description": "Default capabilities for Hermes Remote Manager",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "core:window:allow-close",
+    "core:window:allow-set-size",
+    "core:window:allow-set-title",
+    "core:event:default",
+    "core:event:allow-listen",
+    "core:event:allow-emit",
+    "shell:default",
+    "shell:allow-open",
+    "process:default",
+    "process:allow-exit"
+  ]
+}
