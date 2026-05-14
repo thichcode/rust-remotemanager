@@ -102,6 +102,18 @@ export interface PortForward {
   active: boolean;
 }
 
+export interface TunnelConfig {
+  id: string;
+  session_id: string;
+  tunnel_type: TunnelType;
+  name: string;
+  local_host: string;
+  local_port: number;
+  remote_host: string;
+  remote_port: number;
+  active: boolean;
+}
+
 // ─── IPC Result Types ───────────────────────────────────────────────────────
 
 export interface IpcResult<T = unknown> {
@@ -115,6 +127,16 @@ export interface IpcResult<T = unknown> {
 export interface TerminalOutputEvent {
   id: string;
   data: string;
+}
+
+export interface SftpFileInfo {
+  name: string;
+  path: string;
+  size: number;
+  is_dir: boolean;
+  is_symlink: boolean;
+  permissions: string;
+  modified: string;
 }
 
 export interface TerminalResizePayload {

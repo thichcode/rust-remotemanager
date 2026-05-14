@@ -43,7 +43,6 @@ jobs:
 
       - name: Build Tauri App
         run: cargo tauri build --bundles msi
-        working-directory: src-tauri
 
       - name: Upload MSI Installer
         uses: actions/upload-artifact@v4

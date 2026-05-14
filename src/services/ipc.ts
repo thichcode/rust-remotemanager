@@ -9,6 +9,8 @@ import type {
   IpcResult,
   TerminalOutputEvent,
   ConnectionFormData,
+  SftpFileInfo,
+  TunnelConfig,
 } from './types';
 
 // ─── Helper ─────────────────────────────────────────────────────────────────
@@ -121,6 +123,50 @@ export async function getSettings(): Promise<IpcResult<Setting[]>> {
 
 export async function updateSetting(key: string, value: string): Promise<IpcResult<void>> {
   return tauriInvoke<void>('update_setting', { key, value });
+}
+
+// ─── SFTP File Browser ───────────────────────────────────────────────────────
+
+export async function listSftpDir(sessionId: string, path: string): Promise<IpcResult<SftpFileInfo[]>> {
+  return tauriInvoke<SftpFileInfo[]>('list_sftp_dir', { sessionId, path });
+}
+
+export async function sftpDownload(sessionId: string, remotePath: string): Promise<IpcResult<number[]>> {
+  return tauriInvoke<number[]>('sftp_download', { sessionId, remotePath });
+}
+
+export async function sftpUpload(sessionId: string, remotePath: string, data: number[]): Promise<IpcResult<void>> {
+  return tauriInvoke<void>('sftp_upload', { sessionId, remotePath, data });
+}
+
+export async function sftpMkdir(sessionId: string, path: string): Promise<IpcResult<void>> {
+  return tauriInvoke<void>('sftp_mkdir', { sessionId, path });
+}
+
+export async function sftpRm(sessionId: string, path: string): Promise<IpcResult<void>> {
+  return tauriInvoke<void>('sftp_rm', { sessionId, path });
+}
+
+export async function sftpRename(sessionId: string, oldPath: string, newPath: string): Promise<IpcResult<void>> {
+  return tauriInvoke<void>('sftp_rename', { sessionId, oldPath, newPath });
+}
+
+export async function sftpStat(sessionId: string, path: string): Promise<IpcResult<SftpFileInfo>> {
+  return tauriInvoke<SftpFileInfo>('sftp_stat', { sessionId, path });
+}
+
+// ─── SSH Tunnels / Port Forwarding ──────────────────────────────────────────
+
+export async function listTunnels(sessionId?: string): Promise<IpcResult<TunnelConfig[]>> {
+  return tauriInvoke<TunnelConfig[]>('list_tunnels', { sessionId });
+}
+
+export async function createTunnel(config: TunnelConfig, sessionId: string): Promise<IpcResult<TunnelConfig>> {
+  return tauriInvoke<TunnelConfig>('create_tunnel', { config, sessionId });
+}
+
+export async function stopTunnel(id: string): Promise<IpcResult<void>> {
+  return tauriInvoke<void>('stop_tunnel', { id });
 }
 
 // ─── Event Listeners ────────────────────────────────────────────────────────

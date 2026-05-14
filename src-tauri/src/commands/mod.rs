@@ -3,5 +3,7 @@ pub mod connections;
 pub mod credentials;
 pub mod folders;
 pub mod settings;
+pub mod sftp;
 pub mod terminal;
+pub mod tunnels;
 pub mod vault;

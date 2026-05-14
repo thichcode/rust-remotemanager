@@ -51,6 +51,7 @@ pub struct SshSession {
     pub config: SshConfig,
     pub state: Arc<Mutex<SessionState>>,
     pub running: Arc<AtomicBool>,
+    pub ssh_session: Arc<Mutex<Option<ssh2::Session>>>,
     pub cmd_tx: Option<Sender<ChannelCommand>>,
     pub thread_handle: Option<thread::JoinHandle<()>>,
 }
@@ -62,6 +63,7 @@ impl SshSession {
             config,
             state: Arc::new(Mutex::new(SessionState::Disconnected)),
             running: Arc::new(AtomicBool::new(false)),
+            ssh_session: Arc::new(Mutex::new(None)),
             cmd_tx: None,
             thread_handle: None,
         }
@@ -94,6 +96,7 @@ impl SessionManager {
 
         let state = Arc::new(Mutex::new(SessionState::Connecting));
         let running = Arc::new(AtomicBool::new(true));
+        let ssh_session_storage: Arc<Mutex<Option<ssh2::Session>>> = Arc::new(Mutex::new(None));
 
         let (cmd_tx, cmd_rx) = mpsc::channel::<ChannelCommand>();
 
@@ -104,6 +107,7 @@ impl SessionManager {
             running: running.clone(),
             cmd_tx: Some(cmd_tx),
             thread_handle: None,
+            ssh_session: ssh_session_storage.clone(),
         };
 
         // Insert a placeholder; we'll set the thread handle after spawning.
@@ -123,6 +127,7 @@ impl SessionManager {
                     thread_state,
                     thread_running,
                     cmd_rx,
+                    ssh_session_storage,
                 );
             })
             .expect("failed to spawn SSH I/O thread");
@@ -199,6 +204,16 @@ impl SessionManager {
             .map(|s| s.state.lock().unwrap().clone())
     }
 
+    /// Get a clone of the underlying ssh2::Session for SFTP operations.
+    pub fn get_ssh_session(&self, id: &str) -> Option<ssh2::Session> {
+        self.sessions.get(id).and_then(|s| {
+            s.ssh_session
+                .lock()
+                .ok()
+                .and_then(|guard| guard.clone())
+        })
+    }
+
     /// List all active session IDs.
     pub fn list(&self) -> Vec<String> {
         self.sessions.keys().cloned().collect()
@@ -222,12 +237,18 @@ fn run_ssh_session(
     state: Arc<Mutex<SessionState>>,
     running: Arc<AtomicBool>,
     cmd_rx: Receiver<ChannelCommand>,
+    ssh_session_storage: Arc<Mutex<Option<ssh2::Session>>>,
 ) {
     let id = session_id.to_string();
     let result = establish_connection(config);
 
+    // Store the SSH session for SFTP operations before using the channel.
+    if let Ok((ref session, _)) = result {
+        *ssh_session_storage.lock().unwrap() = Some(session.clone());
+    }
+
     let mut channel = match result {
-        Ok(ch) => {
+        Ok((_, ch)) => {
             *state.lock().unwrap() = SessionState::Connected {
                 cols: 80,
                 rows: 24,
@@ -370,10 +391,10 @@ fn run_ssh_session(
     let _ = channel.send_eof();
     let _ = channel.wait_close();
 }
-
 /// Perform the full SSH connection sequence:
 /// TCP connect → SSH handshake → authenticate → open channel → PTY → shell.
-fn establish_connection(config: &SshConfig) -> Result<Channel, String> {
+/// Returns both the `Session` and `Channel` so the session can be cloned for SFTP.
+fn establish_connection(config: &SshConfig) -> Result<(ssh2::Session, Channel), String> {
     // 1. TCP connect
     let addr = format!("{}:{}", config.host, config.port);
     let tcp = TcpStream::connect(&addr)
@@ -382,10 +403,11 @@ fn establish_connection(config: &SshConfig) -> Result<Channel, String> {
         .map_err(|e| format!("Failed to set TCP stream blocking: {}", e))?;
 
     // 2. Create SSH session and handshake
-    let mut session = ssh2::Session::new()
-        .map_err(|e| format!("Failed to create SSH session: {}", e))?;
+    let mut session =
+        ssh2::Session::new().map_err(|e| format!("Failed to create SSH session: {}", e))?;
     session.set_tcp_stream(tcp);
-    session.handshake()
+    session
+        .handshake()
         .map_err(|e| format!("SSH handshake with {} failed: {}", config.host, e))?;
 
     // 3. Authenticate
@@ -429,7 +451,7 @@ fn establish_connection(config: &SshConfig) -> Result<Channel, String> {
         .shell()
         .map_err(|e| format!("Failed to start shell: {}", e))?;
 
-    Ok(channel)
+    Ok((session, channel))
 }
 
 // ─────────────────────────────────────────────────────────────────────

@@ -55,4 +55,10 @@ impl From<serde_json::Error> for AppError {
     }
 }
 
+impl From<ssh2::Error> for AppError {
+    fn from(err: ssh2::Error) -> Self {
+        AppError::Ssh(err.to_string())
+    }
+}
+
 pub type AppResult<T> = Result<T, AppError>;

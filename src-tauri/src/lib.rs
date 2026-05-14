@@ -13,8 +13,9 @@ mod storage;
 
 use rusqlite::Connection;
 use security::vault::Vault;
-use ssh::session::SessionManager;
 use settings::SettingsManager;
+use ssh::session::SessionManager;
+use ssh::tunnels::TunnelManager;
 use std::sync::Mutex;
 use tauri::Manager;
 
@@ -23,6 +24,7 @@ pub struct AppState {
     pub db: Mutex<Connection>,
     pub vault: Mutex<Vault>,
     pub sessions: Mutex<SessionManager>,
+    pub tunnels: Mutex<TunnelManager>,
     pub settings: Mutex<SettingsManager>,
 }
 
@@ -73,6 +75,7 @@ pub fn run() {
             let conn = initialize_database(app).expect("failed to initialize database");
             let vault = Vault::new();
             let sessions = SessionManager::new();
+            let tunnels = TunnelManager::new();
             let settings =
                 SettingsManager::new(&conn).expect("failed to load settings");
 
@@ -80,6 +83,7 @@ pub fn run() {
                 db: Mutex::new(conn),
                 vault: Mutex::new(vault),
                 sessions: Mutex::new(sessions),
+                tunnels: Mutex::new(tunnels),
                 settings: Mutex::new(settings),
             };
 
@@ -110,6 +114,16 @@ pub fn run() {
             commands::terminal::terminal_resize,
             commands::terminal::list_sessions,
             commands::terminal::get_session_state,
+            commands::sftp::list_sftp_dir,
+            commands::sftp::sftp_download,
+            commands::sftp::sftp_upload,
+            commands::sftp::sftp_mkdir,
+            commands::sftp::sftp_rm,
+            commands::sftp::sftp_rename,
+            commands::sftp::sftp_stat,
+            commands::tunnels::list_tunnels,
+            commands::tunnels::create_tunnel,
+            commands::tunnels::stop_tunnel,
             commands::vault::vault_status,
             commands::vault::vault_unlock,
             commands::vault::vault_lock,
