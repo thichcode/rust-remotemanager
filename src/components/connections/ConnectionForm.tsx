@@ -12,7 +12,7 @@ import {
   FileText,
   Heart,
 } from 'lucide-react';
-import type { Connection, ConnectionFormData, ConnectionType, AuthType, Folder } from '../../services/types';
+import { Connection, ConnectionFormData, ConnectionType, AuthType, Folder } from '../../services/types';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { getCredentials } from '../../services/ipc';
 import type { Credential } from '../../services/types';
@@ -25,7 +25,7 @@ interface ConnectionFormProps {
 
 const initialFormData: ConnectionFormData = {
   name: '',
-  type: 'ssh' as ConnectionType,
+  type: ConnectionType.SSH,
   host: '',
   port: 22,
   username: '',
@@ -131,9 +131,9 @@ export default function ConnectionForm({
   };
 
   const connectionTypes: { value: ConnectionType; label: string; icon: typeof Terminal; defaultPort: number }[] = [
-    { value: 'ssh', label: 'SSH', icon: Terminal, defaultPort: 22 },
-    { value: 'rdp', label: 'RDP', icon: Monitor, defaultPort: 3389 },
-    { value: 'serial', label: 'Serial', icon: Cable, defaultPort: 9600 },
+    { value: ConnectionType.SSH, label: 'SSH', icon: Terminal, defaultPort: 22 },
+    { value: ConnectionType.RDP, label: 'RDP', icon: Monitor, defaultPort: 3389 },
+    { value: ConnectionType.Serial, label: 'Serial', icon: Cable, defaultPort: 9600 },
   ];
 
   return (

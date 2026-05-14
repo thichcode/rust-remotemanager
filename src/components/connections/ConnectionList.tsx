@@ -10,7 +10,7 @@ import {
   X,
 } from 'lucide-react';
 import ConnectionCard from './ConnectionCard';
-import type { Connection, ConnectionType } from '../../services/types';
+import { Connection, ConnectionType } from '../../services/types';
 
 interface ConnectionListProps {
   connections: Connection[];
@@ -26,9 +26,9 @@ interface ConnectionListProps {
 
 const typeFilters: { value: ConnectionType | 'all'; label: string; icon: typeof Terminal }[] = [
   { value: 'all', label: 'All', icon: Terminal },
-  { value: 'ssh', label: 'SSH', icon: Terminal },
-  { value: 'rdp', label: 'RDP', icon: Monitor },
-  { value: 'serial', label: 'Serial', icon: Cable },
+  { value: ConnectionType.SSH, label: 'SSH', icon: Terminal },
+  { value: ConnectionType.RDP, label: 'RDP', icon: Monitor },
+  { value: ConnectionType.Serial, label: 'Serial', icon: Cable },
 ];
 
 export default function ConnectionList({

@@ -83,7 +83,14 @@ export default function Connections() {
 
   const handleSaveConnection = async (data: ConnectionFormData) => {
     if (editingConnection) {
-      await updateConnection({ ...editingConnection, ...data });
+      const payload: Connection = {
+        ...editingConnection,
+        ...data,
+        startupCommands: data.startupCommands
+          ? data.startupCommands.split('\n').filter(Boolean)
+          : [],
+      };
+      await updateConnection(payload);
     } else {
       await createConnection(data);
     }
