@@ -35,7 +35,7 @@ jobs:
           node-version: 22
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2"
