@@ -45,6 +45,12 @@ pub struct TunnelManager {
     tunnels: Arc<Mutex<HashMap<String, Tunnel>>>,
 }
 
+impl Default for TunnelManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TunnelManager {
     pub fn new() -> Self {
         Self {
@@ -417,7 +423,7 @@ fn forward_connection(local: TcpStream, remote: Channel, name: &str) {
 /// 5. Reply with success
 /// 6. Forward data bidirectionally
 fn handle_socks5(mut stream: TcpStream, session: &ssh2::Session) -> Result<(), String> {
-    use std::io::{BufRead, BufReader};
+    
 
     // Set a reasonable read timeout
     stream

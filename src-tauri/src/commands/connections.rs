@@ -10,7 +10,7 @@ use tauri::State;
 pub fn list_connections(state: State<AppState>) -> AppResult<Vec<Connection>> {
     let db = state.db.lock().unwrap();
     let repo = ConnectionRepository::new(&db);
-    Ok(repo.list()?)
+    repo.list()
 }
 
 #[tauri::command]
@@ -80,7 +80,7 @@ pub fn search_connections(
 ) -> AppResult<Vec<Connection>> {
     let db = state.db.lock().unwrap();
     let repo = ConnectionRepository::new(&db);
-    Ok(repo.search(&term)?)
+    repo.search(&term)
 }
 
 #[tauri::command]
@@ -90,12 +90,12 @@ pub fn get_connection(
 ) -> AppResult<Option<Connection>> {
     let db = state.db.lock().unwrap();
     let repo = ConnectionRepository::new(&db);
-    Ok(repo.get_by_id(&id)?)
+    repo.get_by_id(&id)
 }
 
 #[tauri::command]
 pub fn get_favorites(state: State<AppState>) -> AppResult<Vec<Connection>> {
     let db = state.db.lock().unwrap();
     let repo = ConnectionRepository::new(&db);
-    Ok(repo.get_favorites()?)
+    repo.get_favorites()
 }

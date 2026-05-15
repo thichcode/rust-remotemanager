@@ -22,7 +22,7 @@ pub fn pick_ssh_key_file() -> AppResult<String> {
 pub fn list_credentials(state: State<AppState>) -> AppResult<Vec<Credential>> {
     let db = state.db.lock().unwrap();
     let repo = CredentialRepository::new(&db);
-    Ok(repo.list()?)
+    repo.list()
 }
 
 /// Save a credential. Encrypts password/private key via the vault if unlocked.
@@ -93,7 +93,7 @@ pub fn save_credential(
     };
 
     let repo = CredentialRepository::new(&db);
-    Ok(repo.create(credential)?)
+    repo.create(credential)
 }
 
 /// Delete a credential by ID.

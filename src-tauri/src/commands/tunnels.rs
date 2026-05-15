@@ -1,6 +1,5 @@
 use crate::error::{AppError, AppResult};
-use crate::ssh::session::SessionManager;
-use crate::ssh::tunnels::{TunnelConfig, TunnelManager};
+use crate::ssh::tunnels::TunnelConfig;
 use crate::AppState;
 use tauri::State;
 use uuid::Uuid;
@@ -33,7 +32,7 @@ pub fn create_tunnel(
     config: TunnelConfig,
     session_id: String,
 ) -> AppResult<TunnelConfig> {
-    let mut sessions = state
+    let sessions = state
         .sessions
         .lock()
         .map_err(|e| AppError::Ssh(format!("Lock error: {}", e)))?;
@@ -53,13 +52,13 @@ pub fn create_tunnel(
     config.session_id = session_id.clone();
     config.active = true;
 
-    let result = match config.tunnel_type {
+    
+
+    match config.tunnel_type {
         crate::ssh::tunnels::TunnelType::Local => tunnels.add_local(&ssh_session, config),
         crate::ssh::tunnels::TunnelType::Remote => tunnels.add_remote(&ssh_session, config),
         crate::ssh::tunnels::TunnelType::Dynamic => tunnels.add_dynamic(&ssh_session, config),
-    };
-
-    result
+    }
 }
 
 /// Stop and remove a tunnel by ID.

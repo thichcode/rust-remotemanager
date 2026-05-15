@@ -56,6 +56,7 @@ pub struct Credential {
 }
 
 /// Represents a single terminal session log entry.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionLog {
     pub id: String,
@@ -92,6 +93,7 @@ pub struct ConnectionCreateRequest {
 }
 
 /// Key-value settings entry.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Setting {
     pub key: String,
@@ -99,6 +101,7 @@ pub struct Setting {
 }
 
 /// Represents a saved command snippet for quick reuse.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Snippet {
     pub id: String,

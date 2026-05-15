@@ -64,4 +64,10 @@ impl From<ssh2::Error> for AppError {
     }
 }
 
+impl From<String> for AppError {
+    fn from(err: String) -> Self {
+        AppError::Io(err)
+    }
+}
+
 pub type AppResult<T> = Result<T, AppError>;

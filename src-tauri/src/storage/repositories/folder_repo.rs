@@ -41,11 +41,13 @@ impl<'a> FolderRepository<'a> {
         Ok(folders)
     }
 
+    #[allow(dead_code)]
     /// List all folders sorted by sort_order (alias for list_all).
     pub fn list_tree(&self) -> AppResult<Vec<Folder>> {
         self.list_all()
     }
 
+    #[allow(dead_code)]
     /// Get a single folder by ID.
     pub fn get_by_id(&self, id: &str) -> AppResult<Option<Folder>> {
         let mut stmt = self.conn.prepare(

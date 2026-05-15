@@ -273,6 +273,7 @@ impl<'a> ConnectionRepository<'a> {
         Ok(connections)
     }
 
+    #[allow(dead_code)]
     /// Get all connections within a specific folder.
     pub fn get_by_folder(&self, folder_id: &str) -> AppResult<Vec<Connection>> {
         let mut stmt = self.conn.prepare(

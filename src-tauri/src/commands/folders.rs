@@ -8,7 +8,7 @@ use tauri::State;
 pub fn list_folders(state: State<AppState>) -> AppResult<Vec<Folder>> {
     let db = state.db.lock().unwrap();
     let repo = FolderRepository::new(&db);
-    Ok(repo.list_all()?)
+    repo.list_all()
 }
 
 #[tauri::command]
@@ -21,7 +21,7 @@ pub fn create_folder(
     let db = state.db.lock().unwrap();
     let repo = FolderRepository::new(&db);
     let order = sort_order.unwrap_or(0);
-    Ok(repo.create(&name, parent_id.as_deref(), order)?)
+    repo.create(&name, parent_id.as_deref(), order)
 }
 
 #[tauri::command]

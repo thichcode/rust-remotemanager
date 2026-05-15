@@ -49,6 +49,7 @@ impl<'a> CredentialRepository<'a> {
         Ok(credentials)
     }
 
+    #[allow(dead_code)]
     /// Get a single credential by ID.
     pub fn get_by_id(&self, id: &str) -> AppResult<Option<Credential>> {
         let mut stmt = self.conn.prepare(
@@ -128,6 +129,7 @@ impl<'a> CredentialRepository<'a> {
         })
     }
 
+    #[allow(dead_code)]
     /// Update an existing credential. Returns true if a row was modified.
     pub fn update(&self, cred: Credential) -> AppResult<bool> {
         let now = Utc::now().to_rfc3339();

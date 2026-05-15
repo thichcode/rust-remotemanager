@@ -45,11 +45,13 @@ impl Database {
     }
 
     /// Get a reference to the underlying SQLite connection.
+    #[allow(dead_code)]
     pub fn get_conn(&self) -> &Connection {
         &self.conn
     }
 
     /// Get a mutable reference to the underlying SQLite connection.
+    #[allow(dead_code)]
     pub fn get_conn_mut(&mut self) -> &mut Connection {
         &mut self.conn
     }
