@@ -156,8 +156,14 @@ export default function Connections() {
       });
 
       if (result.success && result.data) {
-        addSession(result.data);
-        navigate(`/terminal/${result.data.id}`);
+        // Rust returns session_id (String), not TerminalSession object
+        addSession({
+          id: result.data,
+          connectionId: connection.id,
+          state: 'connecting',
+          createdAt: new Date().toISOString(),
+        });
+        navigate(`/terminal/${result.data}`);
       } else {
         toast.error(result.error ?? 'Failed to connect');
       }

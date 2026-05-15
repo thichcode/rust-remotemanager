@@ -131,8 +131,8 @@ export async function connectSSH(config: {
   username: string;
   authType: string;
   credentialId?: string;
-}): Promise<IpcResult<TerminalSession>> {
-  return tauriInvoke<TerminalSession>('connect_ssh', preparePayload(config));
+}): Promise<IpcResult<string>> {
+  return tauriInvoke<string>('connect_ssh', preparePayload(config));
 }
 
 export async function disconnectSession(id: string): Promise<IpcResult<void>> {
@@ -224,6 +224,33 @@ export async function listenToTerminalOutput(
   callback: (event: TerminalOutputEvent) => void,
 ): Promise<UnlistenFn> {
   return listen<TerminalOutputEvent>(`terminal:output-${id}`, (event) => {
+    callback(event.payload);
+  });
+}
+
+export async function listenToTerminalConnected(
+  id: string,
+  callback: (payload: { id: string; cols: number; rows: number }) => void,
+): Promise<UnlistenFn> {
+  return listen<{ id: string; cols: number; rows: number }>(`terminal:connected-${id}`, (event) => {
+    callback(event.payload);
+  });
+}
+
+export async function listenToTerminalError(
+  id: string,
+  callback: (payload: { id: string; error: string }) => void,
+): Promise<UnlistenFn> {
+  return listen<{ id: string; error: string }>(`terminal:error-${id}`, (event) => {
+    callback(event.payload);
+  });
+}
+
+export async function listenToTerminalExit(
+  id: string,
+  callback: (payload: { id: string }) => void,
+): Promise<UnlistenFn> {
+  return listen<{ id: string }>(`terminal:exit-${id}`, (event) => {
     callback(event.payload);
   });
 }

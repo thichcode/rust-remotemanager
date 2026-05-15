@@ -253,13 +253,20 @@ fn run_ssh_session(
                 cols: 80,
                 rows: 24,
             };
+            let _ = app_handle.emit(
+                &format!("terminal:connected-{}", id),
+                serde_json::json!({
+                    "id": id,
+                    "cols": 80,
+                    "rows": 24,
+                }),
+            );
             ch
         }
         Err(e) => {
             *state.lock().unwrap() = SessionState::Error(e.clone());
-            // Emit error event so the frontend knows the connection failed.
             let _ = app_handle.emit(
-                "terminal:error",
+                &format!("terminal:error-{}", id),
                 serde_json::json!({
                     "id": id,
                     "error": e,
@@ -317,7 +324,7 @@ fn run_ssh_session(
                     // EOF from remote side — shell likely exited.
                     tracing::info!("[{}] EOF on stdout", id);
                     let _ = app_handle.emit(
-                        "terminal:exit",
+                        &format!("terminal:exit-{}", id),
                         serde_json::json!({ "id": id }),
                     );
                     *state.lock().unwrap() = SessionState::Disconnected;
@@ -326,7 +333,7 @@ fn run_ssh_session(
                 Ok(n) => {
                     let data = String::from_utf8_lossy(&buf[..n]).to_string();
                     let _ = app_handle.emit(
-                        "terminal:output",
+                        &format!("terminal:output-{}", id),
                         serde_json::json!({ "id": id, "data": data }),
                     );
                     // Try to read more in the same batch.
@@ -338,7 +345,7 @@ fn run_ssh_session(
                 Err(e) => {
                     tracing::error!("[{}] read error: {}", id, e);
                     let _ = app_handle.emit(
-                        "terminal:error",
+                        &format!("terminal:error-{}", id),
                         serde_json::json!({ "id": id, "error": e.to_string() }),
                     );
                     *state.lock().unwrap() = SessionState::Error(e.to_string());
@@ -375,7 +382,7 @@ fn run_ssh_session(
         if channel.eof() {
             tracing::info!("[{}] channel eof", id);
             let _ = app_handle.emit(
-                "terminal:exit",
+                &format!("terminal:exit-{}", id),
                 serde_json::json!({ "id": id }),
             );
             *state.lock().unwrap() = SessionState::Disconnected;

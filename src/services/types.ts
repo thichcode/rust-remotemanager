@@ -70,7 +70,12 @@ export interface Credential {
   updatedAt: string;
 }
 
-export type TerminalSessionState = 'connecting' | 'connected' | 'disconnected' | 'error';
+// Maps Rust SessionState values (as emitted in Tauri events) to frontend states
+export type TerminalSessionState =
+  | 'connecting'   // Rust: Connecting
+  | 'connected'    // Rust: Connected
+  | 'disconnected' // Rust: Disconnected
+  | 'error';       // Rust: Error(String)
 
 export interface TerminalSession {
   id: string;

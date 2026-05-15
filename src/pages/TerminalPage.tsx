@@ -1,13 +1,65 @@
+import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSessionStore } from '../stores/sessionStore';
+import {
+  disconnectSession,
+  listenToTerminalConnected,
+  listenToTerminalError,
+  listenToTerminalExit,
+} from '../services/ipc';
 import TerminalSessionComponent from '../components/terminal/TerminalSession';
 
 export default function TerminalPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
-  const { sessions } = useSessionStore();
+  const { sessions, updateSessionState, removeSession } = useSessionStore();
 
   const session = sessions.find((s) => s.id === sessionId);
+
+  // Listen to Rust-side state change events and sync to store
+  useEffect(() => {
+    if (!sessionId) return;
+
+    let connectedUnlisten: (() => void) | undefined;
+    let errorUnlisten: (() => void) | undefined;
+    let exitUnlisten: (() => void) | undefined;
+
+    const setup = async () => {
+      connectedUnlisten = await listenToTerminalConnected(sessionId, (payload) => {
+        if (payload.id === sessionId) {
+          updateSessionState(sessionId, 'connected');
+        }
+      });
+
+      errorUnlisten = await listenToTerminalError(sessionId, (payload) => {
+        if (payload.id === sessionId) {
+          updateSessionState(sessionId, 'error');
+        }
+      });
+
+      exitUnlisten = await listenToTerminalExit(sessionId, (payload) => {
+        if (payload.id === sessionId) {
+          updateSessionState(sessionId, 'disconnected');
+        }
+      });
+    };
+
+    setup();
+
+    return () => {
+      connectedUnlisten?.();
+      errorUnlisten?.();
+      exitUnlisten?.();
+    };
+  }, [sessionId, updateSessionState]);
+
+  const handleClose = async () => {
+    if (sessionId) {
+      await disconnectSession(sessionId);
+      removeSession(sessionId);
+    }
+    navigate('/connections');
+  };
 
   if (!session) {
     return (
@@ -27,7 +79,7 @@ export default function TerminalPage() {
 
   return (
     <div className="h-full w-full">
-      <TerminalSessionComponent session={session} onClose={() => navigate('/connections')} />
+      <TerminalSessionComponent session={session} onClose={handleClose} />
     </div>
   );
 }
