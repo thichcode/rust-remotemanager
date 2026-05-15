@@ -26,6 +26,32 @@ async function tauriInvoke<T>(method: string, args?: Record<string, unknown>): P
   }
 }
 
+// ─── Helper: camelCase → snake_case (used by preparePayload) ──────────────────
+
+function toSnakeCase(str: string): string {
+  return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+}
+
+function preparePayload(
+  obj: Record<string, unknown> | object | unknown[],
+): Record<string, unknown> {
+  if (Array.isArray(obj)) {
+    return obj.map((item) =>
+      typeof item === 'object' && item !== null ? preparePayload(item as Record<string, unknown>) : item,
+    ) as unknown as Record<string, unknown>;
+  }
+  const converted: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const snakeKey = toSnakeCase(key);
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      converted[snakeKey] = preparePayload(value as Record<string, unknown>);
+    } else {
+      converted[snakeKey] = value;
+    }
+  }
+  return converted;
+}
+
 // ─── Connections ────────────────────────────────────────────────────────────
 
 export async function listConnections(): Promise<IpcResult<Connection[]>> {
@@ -33,11 +59,25 @@ export async function listConnections(): Promise<IpcResult<Connection[]>> {
 }
 
 export async function createConnection(data: ConnectionFormData): Promise<IpcResult<Connection>> {
-  return tauriInvoke<Connection>('create_connection', { data });
+  const payload = preparePayload(data);
+  // tags: string[] → JSON string for Rust's Option<String>
+  if (data.tags && Array.isArray(data.tags)) {
+    payload.tags = JSON.stringify(data.tags);
+  }
+  // startup_commands is already a newline-delimited string in ConnectionFormData
+  return tauriInvoke<Connection>('create_connection', payload);
 }
 
 export async function updateConnection(data: Connection): Promise<IpcResult<Connection>> {
-  return tauriInvoke<Connection>('update_connection', { data });
+  const payload = preparePayload(data);
+  // tags & startupCommands: string[] → JSON string for Rust's Option<String>
+  if (data.tags && Array.isArray(data.tags)) {
+    payload.tags = JSON.stringify(data.tags);
+  }
+  if (data.startupCommands && Array.isArray(data.startupCommands)) {
+    payload.startup_commands = JSON.stringify(data.startupCommands);
+  }
+  return tauriInvoke<Connection>('update_connection', payload);
 }
 
 export async function deleteConnection(id: string): Promise<IpcResult<void>> {
@@ -51,11 +91,11 @@ export async function listFolders(): Promise<IpcResult<Folder[]>> {
 }
 
 export async function createFolder(data: Omit<Folder, 'id' | 'createdAt' | 'updatedAt'>): Promise<IpcResult<Folder>> {
-  return tauriInvoke<Folder>('create_folder', { data });
+  return tauriInvoke<Folder>('create_folder', preparePayload(data));
 }
 
 export async function updateFolder(data: Folder): Promise<IpcResult<Folder>> {
-  return tauriInvoke<Folder>('update_folder', { data });
+  return tauriInvoke<Folder>('update_folder', preparePayload(data));
 }
 
 export async function deleteFolder(id: string): Promise<IpcResult<void>> {
@@ -69,7 +109,7 @@ export async function getCredentials(): Promise<IpcResult<Credential[]>> {
 }
 
 export async function saveCredential(data: Omit<Credential, 'id' | 'createdAt' | 'updatedAt'>): Promise<IpcResult<Credential>> {
-  return tauriInvoke<Credential>('save_credential', { data });
+  return tauriInvoke<Credential>('save_credential', preparePayload(data));
 }
 
 export async function deleteCredential(id: string): Promise<IpcResult<void>> {
@@ -86,7 +126,7 @@ export async function connectSSH(config: {
   authType: string;
   credentialId?: string;
 }): Promise<IpcResult<TerminalSession>> {
-  return tauriInvoke<TerminalSession>('connect_ssh', { config });
+  return tauriInvoke<TerminalSession>('connect_ssh', preparePayload(config));
 }
 
 export async function disconnectSession(id: string): Promise<IpcResult<void>> {
@@ -128,41 +168,43 @@ export async function updateSetting(key: string, value: string): Promise<IpcResu
 // ─── SFTP File Browser ───────────────────────────────────────────────────────
 
 export async function listSftpDir(sessionId: string, path: string): Promise<IpcResult<SftpFileInfo[]>> {
-  return tauriInvoke<SftpFileInfo[]>('list_sftp_dir', { sessionId, path });
+  return tauriInvoke<SftpFileInfo[]>('list_sftp_dir', { session_id: sessionId, path });
 }
 
 export async function sftpDownload(sessionId: string, remotePath: string): Promise<IpcResult<number[]>> {
-  return tauriInvoke<number[]>('sftp_download', { sessionId, remotePath });
+  return tauriInvoke<number[]>('sftp_download', { session_id: sessionId, remote_path: remotePath });
 }
 
 export async function sftpUpload(sessionId: string, remotePath: string, data: number[]): Promise<IpcResult<void>> {
-  return tauriInvoke<void>('sftp_upload', { sessionId, remotePath, data });
+  return tauriInvoke<void>('sftp_upload', { session_id: sessionId, remote_path: remotePath, data });
 }
 
 export async function sftpMkdir(sessionId: string, path: string): Promise<IpcResult<void>> {
-  return tauriInvoke<void>('sftp_mkdir', { sessionId, path });
+  return tauriInvoke<void>('sftp_mkdir', { session_id: sessionId, path });
 }
 
 export async function sftpRm(sessionId: string, path: string): Promise<IpcResult<void>> {
-  return tauriInvoke<void>('sftp_rm', { sessionId, path });
+  return tauriInvoke<void>('sftp_rm', { session_id: sessionId, path });
 }
 
 export async function sftpRename(sessionId: string, oldPath: string, newPath: string): Promise<IpcResult<void>> {
-  return tauriInvoke<void>('sftp_rename', { sessionId, oldPath, newPath });
+  return tauriInvoke<void>('sftp_rename', { session_id: sessionId, old_path: oldPath, new_path: newPath });
 }
 
 export async function sftpStat(sessionId: string, path: string): Promise<IpcResult<SftpFileInfo>> {
-  return tauriInvoke<SftpFileInfo>('sftp_stat', { sessionId, path });
+  return tauriInvoke<SftpFileInfo>('sftp_stat', { session_id: sessionId, path });
 }
 
 // ─── SSH Tunnels / Port Forwarding ──────────────────────────────────────────
 
 export async function listTunnels(sessionId?: string): Promise<IpcResult<TunnelConfig[]>> {
-  return tauriInvoke<TunnelConfig[]>('list_tunnels', { sessionId });
+  return tauriInvoke<TunnelConfig[]>('list_tunnels', sessionId ? { session_id: sessionId } : undefined);
 }
 
 export async function createTunnel(config: TunnelConfig, sessionId: string): Promise<IpcResult<TunnelConfig>> {
-  return tauriInvoke<TunnelConfig>('create_tunnel', { config, sessionId });
+  // Flatten TunnelConfig fields + session_id at top level for Rust's create_tunnel(config, session_id)
+  const payload = { ...preparePayload(config), session_id: sessionId };
+  return tauriInvoke<TunnelConfig>('create_tunnel', payload);
 }
 
 export async function stopTunnel(id: string): Promise<IpcResult<void>> {
