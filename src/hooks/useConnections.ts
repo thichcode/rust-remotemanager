@@ -11,6 +11,7 @@ import {
   deleteFolder as apiDeleteFolder,
 } from '../services/ipc';
 import { useConnectionStore } from '../stores/connectionStore';
+import { logDebug } from '../services/logging';
 import toast from 'react-hot-toast';
 
 interface UseConnectionsReturn {
@@ -80,14 +81,23 @@ export function useConnections(): UseConnectionsReturn {
 
   const createConnection = useCallback(
     async (data: ConnectionFormData): Promise<Connection | null> => {
-      const result = await apiCreateConnection(data);
-      if (result.success && result.data) {
-        addConnection(result.data);
-        toast.success(`Connection "${result.data.name}" created`);
-        return result.data;
+      await logDebug('useConnections_createConnection_start', { name: data.name, host: data.host, type: data.type });
+      try {
+        const result = await apiCreateConnection(data);
+        if (result.success && result.data) {
+          await logDebug('useConnections_createConnection_success', { id: result.data.id, name: result.data.name });
+          addConnection(result.data);
+          toast.success(`Connection "${result.data.name}" created`);
+          return result.data;
+        }
+        await logDebug('useConnections_createConnection_failed', { error: result.error });
+        toast.error(result.error ?? 'Failed to create connection');
+        return null;
+      } catch (err: any) {
+        await logDebug('useConnections_createConnection_exception', { message: err?.message ?? String(err) });
+        toast.error('Failed to create connection');
+        return null;
       }
-      toast.error(result.error ?? 'Failed to create connection');
-      return null;
     },
     [addConnection],
   );

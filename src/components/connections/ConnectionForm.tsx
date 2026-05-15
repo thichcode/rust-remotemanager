@@ -17,6 +17,7 @@ import {
 import { Connection, ConnectionFormData, ConnectionType, AuthType, Folder } from '../../services/types';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { getCredentials, pickSSHKeyFile, saveCredential } from '../../services/ipc';
+import { logDebug } from '../../services/logging';
 import type { Credential } from '../../services/types';
 
 interface ConnectionFormProps {
@@ -104,9 +105,10 @@ export default function ConnectionForm({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+    await logDebug('ConnectionForm_submit', formData);
     onSave(formData);
   };
 
