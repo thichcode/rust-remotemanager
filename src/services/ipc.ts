@@ -65,7 +65,7 @@ export async function createConnection(data: ConnectionFormData): Promise<IpcRes
     payload.tags = JSON.stringify(data.tags);
   }
   // startup_commands is already a newline-delimited string in ConnectionFormData
-  return tauriInvoke<Connection>('create_connection', payload);
+  return tauriInvoke<Connection>('create_connection', { req: payload });
 }
 
 export async function updateConnection(data: Connection): Promise<IpcResult<Connection>> {
@@ -77,7 +77,7 @@ export async function updateConnection(data: Connection): Promise<IpcResult<Conn
   if (data.startupCommands && Array.isArray(data.startupCommands)) {
     payload.startup_commands = JSON.stringify(data.startupCommands);
   }
-  return tauriInvoke<Connection>('update_connection', payload);
+  return tauriInvoke<Connection>('update_connection', { conn: payload });
 }
 
 export async function deleteConnection(id: string): Promise<IpcResult<void>> {
