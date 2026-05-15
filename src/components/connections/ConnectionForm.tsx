@@ -70,7 +70,7 @@ export default function ConnectionForm({
         proxyUsername: editingConnection.proxyUsername,
         tags: editingConnection.tags ?? [],
         notes: editingConnection.notes ?? '',
-        startupCommands: (editingConnection.startupCommands ?? []).join('\n'),
+        startupCommands: (editingConnection.startupCommands ?? []).join(' '),
         keepaliveInterval: editingConnection.keepaliveInterval ?? 0,
         isFavorite: editingConnection.isFavorite,
         color: editingConnection.color,
@@ -135,13 +135,14 @@ export default function ConnectionForm({
       try {
         const credentialResult = await saveCredential({
           name: fileName,
-          authType: 'key',
+          authType: AuthType.Key,
           username: formData.username || undefined,
           keyPath: result.data,
         });
         if (credentialResult.success && credentialResult.data) {
-          setCredentials((prev) => [...prev, credentialResult.data]);
-          updateField('credentialId', credentialResult.data.id);
+          const cred = credentialResult.data;
+          setCredentials((prev) => [...prev, cred]);
+          updateField('credentialId', cred.id);
           setErrors((prev) => {
             const { auth, ...rest } = prev;
             return rest;
@@ -212,7 +213,7 @@ export default function ConnectionForm({
                 value={formData.name}
                 onChange={(e) => updateField('name', e.target.value)}
                 placeholder="My Server"
-                className={`w-full rounded-lg border ${\n                  errors.name ? 'border-[var(--status-error)]' : 'border-[var(--border)]'\n                } bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors`}
+                className={`w-full rounded-lg border ${errors.name ? 'border-[var(--status-error)]' : 'border-[var(--border)]'} bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors`}
               />
               {errors.name && (
                 <p className="text-xs text-[var(--status-error)] mt-1">{errors.name}</p>
@@ -235,7 +236,7 @@ export default function ConnectionForm({
                         updateField('port', t.defaultPort);
                       }
                     }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${\n                      formData.type === t.value\n                        ? 'border-[var(--accent)] bg-[var(--accent-muted)] text-[var(--accent)]'\n                        : 'border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--border-light)] hover:text-[var(--text-primary)]'\n                    }`}\n                  >
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${formData.type === t.value ? 'border-[var(--accent)] bg-[var(--accent-muted)] text-[var(--accent)]' : 'border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--border-light)] hover:text-[var(--text-primary)]'}`} >
                     <t.icon size={16} />
                     {t.label}
                   </button>
@@ -280,7 +281,7 @@ export default function ConnectionForm({
                 value={formData.host}
                 onChange={(e) => updateField('host', e.target.value)}
                 placeholder="192.168.1.1"
-                className={`w-full rounded-lg border ${\n                  errors.host ? 'border-[var(--status-error)]' : 'border-[var(--border)]'\n                } bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors`}
+                className={`w-full rounded-lg border ${errors.host ? 'border-[var(--status-error)]' : 'border-[var(--border)]'} bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors`}
               />
               {errors.host && (
                 <p className="text-xs text-[var(--status-error)] mt-1">{errors.host}</p>
@@ -304,7 +305,7 @@ export default function ConnectionForm({
                   placeholder="22"
                   min={1}
                   max={65535}
-                  className={`w-full pl-9 pr-3 py-2 rounded-lg border ${\n                    errors.port ? 'border-[var(--status-error)]' : 'border-[var(--border)]'\n                  } bg-[var(--bg-primary)] text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors`}
+                  className={`w-full pl-9 pr-3 py-2 rounded-lg border ${errors.port ? 'border-[var(--status-error)]' : 'border-[var(--border)]'} bg-[var(--bg-primary)] text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors`}
                 />
               </div>
               {errors.port && (
@@ -322,7 +323,7 @@ export default function ConnectionForm({
                 value={formData.username}
                 onChange={(e) => updateField('username', e.target.value)}
                 placeholder="root"
-                className={`w-full rounded-lg border ${\n                  errors.username ? 'border-[var(--status-error)]' : 'border-[var(--border)]'\n                } bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors`}
+                className={`w-full rounded-lg border ${errors.username ? 'border-[var(--status-error)]' : 'border-[var(--border)]'} bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors`}
               />
               {errors.username && (
                 <p className="text-xs text-[var(--status-error)] mt-1">{errors.username}</p>
