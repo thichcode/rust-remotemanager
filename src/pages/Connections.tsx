@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Plus,
   FolderPlus,
@@ -16,6 +17,9 @@ import ConnectionList from '../components/connections/ConnectionList';
 import FolderTree from '../components/connections/FolderTree';
 import ConnectionForm from '../components/connections/ConnectionForm';
 import type { Connection, ConnectionFormData } from '../services/types';
+import { connectSSH } from '../services/ipc';
+import toast from 'react-hot-toast';
+import { useSessionStore } from '../stores/sessionStore';
 
 export default function Connections() {
   const {
@@ -51,6 +55,9 @@ export default function Connections() {
     openFolderDialog,
     closeFolderDialog,
   } = useUiStore();
+
+  const { addSession } = useSessionStore();
+  const navigate = useNavigate();
 
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [folderNameInput, setFolderNameInput] = useState('');
@@ -137,10 +144,26 @@ export default function Connections() {
     closeFolderDialog();
   };
 
-  const handleConnect = (connection: Connection) => {
-    // In a real app, this would initiate an SSH/RDP connection
-    // and add a terminal session
-    console.log('Connect to:', connection.name);
+  const handleConnect = async (connection: Connection) => {
+    try {
+      const result = await connectSSH({
+        connectionId: connection.id,
+        host: connection.host,
+        port: connection.port,
+        username: connection.username,
+        authType: connection.authType,
+        credentialId: connection.credentialId,
+      });
+
+      if (result.success && result.data) {
+        addSession(result.data);
+        navigate(`/terminal/${result.data.id}`);
+      } else {
+        toast.error(result.error ?? 'Failed to connect');
+      }
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Connection failed');
+    }
   };
 
   return (

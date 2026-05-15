@@ -7,6 +7,7 @@ import MainArea from './components/layout/MainArea';
 import StatusBar from './components/layout/StatusBar';
 import Dashboard from './pages/Dashboard';
 import Connections from './pages/Connections';
+import TerminalPage from './pages/TerminalPage';
 import Settings from './pages/Settings';
 
 // ─── Layout ─────────────────────────────────────────────────────────────────
@@ -34,6 +35,7 @@ function AppShell() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/connections" element={<Connections />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/terminal/:sessionId" element={<TerminalPage />} />
           </Routes>
         </AppLayout>
       </BrowserRouter>
