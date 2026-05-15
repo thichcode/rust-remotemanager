@@ -29,6 +29,9 @@ if (Test-Path (Join-Path $root "LICENSE")) {
     Copy-Item (Join-Path $root "LICENSE") $bundleDir
 }
 
+# Tạo thư mục output
+New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+
 # Tạo zip
 $zipName = "hermes-remote-manager-v${Version}-portable.zip"
 $zipPath = Join-Path $outputDir $zipName
