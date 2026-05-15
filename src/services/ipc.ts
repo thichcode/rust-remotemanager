@@ -116,6 +116,12 @@ export async function deleteCredential(id: string): Promise<IpcResult<void>> {
   return tauriInvoke<void>('delete_credential', { id });
 }
 
+// ─── File Picker ────────────────────────────────────────────────────────────────
+
+export async function pickSSHKeyFile(): Promise<IpcResult<string>> {
+  return tauriInvoke<string>('pick_ssh_key_file');
+}
+
 // ─── Terminal Sessions ──────────────────────────────────────────────────────
 
 export async function connectSSH(config: {

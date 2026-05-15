@@ -105,6 +105,7 @@ pub fn run() {
             commands::folders::update_folder,
             commands::folders::delete_folder,
             commands::folders::reorder_folders,
+            commands::credentials::pick_ssh_key_file,
             commands::credentials::list_credentials,
             commands::credentials::save_credential,
             commands::credentials::delete_credential,

@@ -5,6 +5,14 @@ use crate::storage::repositories::credential_repo::CredentialRepository;
 use tauri::State;
 use uuid::Uuid;
 
+/// Open a file dialog to pick an SSH private key file. Returns the selected file path.
+#[tauri::command]
+pub fn pick_ssh_key_file() -> AppResult<String> {
+    let path = tauri::api::dialog::open(None::<&str>, None::<&str>, false)
+        .ok_or_else(|| AppError::Dialog("No file selected".into()))?;
+    Ok(path)
+}
+
 /// List all stored credentials (encrypted blobs are returned as-is).
 #[tauri::command]
 pub fn list_credentials(state: State<AppState>) -> AppResult<Vec<Credential>> {

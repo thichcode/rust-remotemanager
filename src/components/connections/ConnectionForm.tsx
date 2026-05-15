@@ -11,10 +11,12 @@ import {
   Tags,
   FileText,
   Heart,
+  FileKey,
+  Lock,
 } from 'lucide-react';
 import { Connection, ConnectionFormData, ConnectionType, AuthType, Folder } from '../../services/types';
 import { useConnectionStore } from '../../stores/connectionStore';
-import { getCredentials } from '../../services/ipc';
+import { getCredentials, pickSSHKeyFile, saveCredential } from '../../services/ipc';
 import type { Credential } from '../../services/types';
 
 interface ConnectionFormProps {
@@ -46,6 +48,9 @@ export default function ConnectionForm({
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [keyFilePath, setKeyFilePath] = useState<string>('');
+  const [keyName, setKeyName] = useState<string>('');
+  const [savingKey, setSavingKey] = useState(false);
   const { folders } = useConnectionStore();
 
   useEffect(() => {
@@ -92,6 +97,9 @@ export default function ConnectionForm({
     if (!formData.port || formData.port < 1 || formData.port > 65535)
       newErrors.port = 'Valid port (1-65535) required';
     if (!formData.username.trim()) newErrors.username = 'Username is required';
+    if (formData.authType === 'key' && !formData.credentialId && !keyFilePath) {
+      newErrors.auth = 'SSH key file is required (pick a file or select from saved credentials)';
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -112,6 +120,45 @@ export default function ConnectionForm({
         const { [key]: _, ...rest } = prev;
         return rest;
       });
+    }
+  };
+
+  const handlePickKeyFile = async () => {
+    const result = await pickSSHKeyFile();
+    if (result.success && result.data) {
+      setKeyFilePath(result.data);
+      // Auto-generate a credential name from the filename
+      const fileName = result.data.split('/').pop() || 'SSH Key';
+      setKeyName(fileName);
+      // Auto-save the credential
+      setSavingKey(true);
+      try {
+        const credentialResult = await saveCredential({
+          name: fileName,
+          authType: 'key',
+          username: formData.username || undefined,
+          keyPath: result.data,
+        });
+        if (credentialResult.success && credentialResult.data) {
+          setCredentials((prev) => [...prev, credentialResult.data]);
+          updateField('credentialId', credentialResult.data.id);
+          setErrors((prev) => {
+            const { auth, ...rest } = prev;
+            return rest;
+          });
+        }
+      } finally {
+        setSavingKey(false);
+      }
+    }
+  };
+
+  const handleCredentialChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (val === '__new__') {
+      handlePickKeyFile();
+    } else {
+      updateField('credentialId', val || undefined);
     }
   };
 
@@ -165,9 +212,7 @@ export default function ConnectionForm({
                 value={formData.name}
                 onChange={(e) => updateField('name', e.target.value)}
                 placeholder="My Server"
-                className={`w-full rounded-lg border ${
-                  errors.name ? 'border-[var(--status-error)]' : 'border-[var(--border)]'
-                } bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors`}
+                className={`w-full rounded-lg border ${\n                  errors.name ? 'border-[var(--status-error)]' : 'border-[var(--border)]'\n                } bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors`}
               />
               {errors.name && (
                 <p className="text-xs text-[var(--status-error)] mt-1">{errors.name}</p>
@@ -190,12 +235,7 @@ export default function ConnectionForm({
                         updateField('port', t.defaultPort);
                       }
                     }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                      formData.type === t.value
-                        ? 'border-[var(--accent)] bg-[var(--accent-muted)] text-[var(--accent)]'
-                        : 'border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--border-light)] hover:text-[var(--text-primary)]'
-                    }`}
-                  >
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${\n                      formData.type === t.value\n                        ? 'border-[var(--accent)] bg-[var(--accent-muted)] text-[var(--accent)]'\n                        : 'border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--border-light)] hover:text-[var(--text-primary)]'\n                    }`}\n                  >
                     <t.icon size={16} />
                     {t.label}
                   </button>
@@ -240,9 +280,7 @@ export default function ConnectionForm({
                 value={formData.host}
                 onChange={(e) => updateField('host', e.target.value)}
                 placeholder="192.168.1.1"
-                className={`w-full rounded-lg border ${
-                  errors.host ? 'border-[var(--status-error)]' : 'border-[var(--border)]'
-                } bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors`}
+                className={`w-full rounded-lg border ${\n                  errors.host ? 'border-[var(--status-error)]' : 'border-[var(--border)]'\n                } bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors`}
               />
               {errors.host && (
                 <p className="text-xs text-[var(--status-error)] mt-1">{errors.host}</p>
@@ -266,9 +304,7 @@ export default function ConnectionForm({
                   placeholder="22"
                   min={1}
                   max={65535}
-                  className={`w-full pl-9 pr-3 py-2 rounded-lg border ${
-                    errors.port ? 'border-[var(--status-error)]' : 'border-[var(--border)]'
-                  } bg-[var(--bg-primary)] text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors`}
+                  className={`w-full pl-9 pr-3 py-2 rounded-lg border ${\n                    errors.port ? 'border-[var(--status-error)]' : 'border-[var(--border)]'\n                  } bg-[var(--bg-primary)] text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors`}
                 />
               </div>
               {errors.port && (
@@ -286,9 +322,7 @@ export default function ConnectionForm({
                 value={formData.username}
                 onChange={(e) => updateField('username', e.target.value)}
                 placeholder="root"
-                className={`w-full rounded-lg border ${
-                  errors.username ? 'border-[var(--status-error)]' : 'border-[var(--border)]'
-                } bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors`}
+                className={`w-full rounded-lg border ${\n                  errors.username ? 'border-[var(--status-error)]' : 'border-[var(--border)]'\n                } bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors`}
               />
               {errors.username && (
                 <p className="text-xs text-[var(--status-error)] mt-1">{errors.username}</p>
@@ -307,9 +341,13 @@ export default function ConnectionForm({
                 />
                 <select
                   value={formData.authType}
-                  onChange={(e) =>
-                    updateField('authType', e.target.value as AuthType)
-                  }
+                  onChange={(e) => {
+                    const val = e.target.value as AuthType;
+                    updateField('authType', val);
+                    if (val !== 'key') {
+                      updateField('credentialId', undefined);
+                    }
+                  }}
                   className="w-full pl-9 pr-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors appearance-none"
                 >
                   <option value="password">Password</option>
@@ -319,6 +357,56 @@ export default function ConnectionForm({
               </div>
             </div>
           </div>
+
+          {/* SSH Key Picker — shown when authType is 'key' */}
+          {formData.authType === 'key' && (
+            <div className="space-y-3 p-4 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border)]">
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
+                SSH Key Credential
+              </label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Lock
+                    size={16}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
+                  />
+                  <select
+                    value={formData.credentialId || ''}
+                    onChange={handleCredentialChange}
+                    className="w-full pl-9 pr-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] transition-colors appearance-none"
+                  >
+                    <option value="">— Select saved key or pick new —</option>
+                    {credentials
+                      .filter((c) => c.authType === 'key')
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                          {c.keyPath && ` (${c.keyPath.split('/').pop()})`}
+                        </option>
+                      ))}
+                    <option value="__new__">⚡ Pick key file from disk…</option>
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={handlePickKeyFile}
+                  disabled={savingKey}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--border)] text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-primary)] transition-colors disabled:opacity-50"
+                >
+                  <FileKey size={16} />
+                  {savingKey ? 'Saving…' : 'Pick File'}
+                </button>
+              </div>
+              {keyFilePath && (
+                <p className="text-xs text-[var(--text-muted)] truncate">
+                  📁 {keyFilePath}
+                </p>
+              )}
+              {errors.auth && (
+                <p className="text-xs text-[var(--status-error)]">{errors.auth}</p>
+              )}
+            </div>
+          )}
 
           {/* Tags */}
           <div>
