@@ -25,6 +25,7 @@ thiserror = "1"
 directories = "5"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+rfd = "0.14"
 
 [lib]
 name = "hermes_remote_manager_lib"

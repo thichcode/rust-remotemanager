@@ -1,3 +1,5 @@
+use rfd::FileDialog;
+
 use crate::AppState;
 use crate::error::{AppError, AppResult};
 use crate::storage::models::Credential;
@@ -5,12 +7,14 @@ use crate::storage::repositories::credential_repo::CredentialRepository;
 use tauri::State;
 use uuid::Uuid;
 
-/// Open a file dialog to pick an SSH private key file. Returns the selected file path.
+/// Open a native file dialog to pick an SSH private key file. Returns the selected file path.
 #[tauri::command]
 pub fn pick_ssh_key_file() -> AppResult<String> {
-    let path = tauri::api::dialog::open(None::<&str>, None::<&str>, false)
+    let path = FileDialog::new()
+        .add_filter("SSH Private Key", &["pub", "key", "pem", "id_rsa", "id_ed25519"])
+        .pick_file()
         .ok_or_else(|| AppError::Dialog("No file selected".into()))?;
-    Ok(path)
+    Ok(path.to_string_lossy().to_string())
 }
 
 /// List all stored credentials (encrypted blobs are returned as-is).
