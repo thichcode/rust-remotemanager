@@ -34,6 +34,7 @@ const initialFormData: ConnectionFormData = {
   username: '',
   authType: 'password' as AuthType,
   tags: [],
+  keyPath: '',
   notes: '',
   startupCommands: '',
   keepaliveInterval: 0,
@@ -70,6 +71,7 @@ export default function ConnectionForm({
         proxyPort: editingConnection.proxyPort,
         proxyUsername: editingConnection.proxyUsername,
         tags: editingConnection.tags ?? [],
+        keyPath: '',  // credentialId is the source of truth for key path
         notes: editingConnection.notes ?? '',
         startupCommands: (editingConnection.startupCommands ?? []).join(' '),
         keepaliveInterval: editingConnection.keepaliveInterval ?? 0,
@@ -128,7 +130,9 @@ export default function ConnectionForm({
   const handlePickKeyFile = async () => {
     const result = await pickSSHKeyFile();
     if (result.success && result.data) {
-      setKeyFilePath(result.data);
+      const path = result.data;
+      setKeyFilePath(path);
+      updateField('keyPath', path);  // bind to form state
       // Auto-generate a credential name from the filename
       const fileName = result.data.split('/').pop() || 'SSH Key';
       setKeyName(fileName);
@@ -144,7 +148,9 @@ export default function ConnectionForm({
         if (credentialResult.success && credentialResult.data) {
           const cred = credentialResult.data;
           setCredentials((prev) => [...prev, cred]);
+          // Update both credentialId AND keyPath in form state
           updateField('credentialId', cred.id);
+          setKeyName(cred.name);  // credential name = just the filename
           setErrors((prev) => {
             const { auth, ...rest } = prev;
             return rest;
@@ -162,6 +168,14 @@ export default function ConnectionForm({
       handlePickKeyFile();
     } else {
       updateField('credentialId', val || undefined);
+      // When selecting existing credential, load its keyPath into form state
+      if (val) {
+        const cred = credentials.find((c) => c.id === val);
+        if (cred?.keyPath) {
+          updateField('keyPath', cred.keyPath);
+          setKeyFilePath(cred.keyPath);
+        }
+      }
     }
   };
 

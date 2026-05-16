@@ -166,6 +166,7 @@ export interface ConnectionFormData {
   proxyPort?: number;
   proxyUsername?: string;
   tags: string[];
+  keyPath: string;
   notes: string;
   startupCommands: string;
   keepaliveInterval: number;
