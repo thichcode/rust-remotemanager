@@ -54,8 +54,17 @@ pub fn create_connection(
 #[tauri::command]
 pub fn update_connection(
     state: State<AppState>,
-    conn: Connection,
+    conn: serde_json::Value,
 ) -> AppResult<()> {
+    tracing::info!("[update_connection] raw payload: {}", conn);
+    let conn_raw = conn.clone();
+    let conn: Connection = serde_json::from_value(conn).map_err(|e| {
+        crate::error::AppError::Validation(format!("parse update payload: {} — input: {}", e, conn_raw))
+    })?;
+    tracing::info!(
+        "[update_connection] parsed: id={}, credential_id={:?}, is_favorite={}",
+        conn.id, conn.credential_id, conn.is_favorite
+    );
     let db = state.db.lock().unwrap();
     let repo = ConnectionRepository::new(&db);
     repo.update(conn)?;

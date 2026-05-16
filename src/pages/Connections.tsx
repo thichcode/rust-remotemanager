@@ -93,6 +93,8 @@ export default function Connections() {
       const payload: Connection = {
         ...editingConnection,
         ...data,
+        // credentialId must come from form data, not stale editingConnection
+        credentialId: data.credentialId,
         startupCommands: data.startupCommands
           ? data.startupCommands.split('\n').filter(Boolean)
           : [],
