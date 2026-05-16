@@ -73,7 +73,7 @@ export default function ConnectionForm({
         notes: editingConnection.notes ?? '',
         startupCommands: (editingConnection.startupCommands ?? []).join(' '),
         keepaliveInterval: editingConnection.keepaliveInterval ?? 0,
-        isFavorite: editingConnection.isFavorite,
+        isFavorite: editingConnection.isFavorite ?? false,
         color: editingConnection.color,
       });
     } else {

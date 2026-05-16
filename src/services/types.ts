@@ -44,7 +44,7 @@ export interface Connection {
   notes?: string;
   startupCommands?: string[];
   keepaliveInterval?: number;
-  isFavorite: boolean;
+  isFavorite?: boolean;
   color?: string;
   sortOrder: number;
   createdAt: string;
