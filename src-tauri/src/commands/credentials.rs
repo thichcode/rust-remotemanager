@@ -11,7 +11,8 @@ use uuid::Uuid;
 #[tauri::command]
 pub fn pick_ssh_key_file() -> AppResult<String> {
     let path = FileDialog::new()
-        .add_filter("SSH Private Key", &["pub", "key", "pem", "id_rsa", "id_ed25519"])
+        .add_filter("SSH Private Key", &["pem", "key", "pub", "rsa", "ed25519", "ppk"])
+        .add_filter("All Files", &["*"])
         .pick_file()
         .ok_or_else(|| AppError::Dialog("No file selected".into()))?;
     Ok(path.to_string_lossy().to_string())
