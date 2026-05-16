@@ -14,6 +14,10 @@ pub fn connect_ssh(
     state: State<AppState>,
     config: SshConfig,
 ) -> AppResult<String> {
+    tracing::info!(
+        "[connect_ssh] received config: host={}, port={}, username={}, auth_type={}",
+        config.host, config.port, config.username, config.auth_type
+    );
     let session_id = Uuid::new_v4().to_string();
 
     let mut sessions = state
