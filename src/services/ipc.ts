@@ -132,15 +132,16 @@ export async function connectSSH(config: {
   authType: string;
   credentialId?: string;
 }): Promise<IpcResult<string>> {
+  // Build payload with explicit snake_case keys — no preparePayload to avoid nesting bugs
   const payload: Record<string, unknown> = {
     connection_id: config.connectionId,
     host: config.host,
-    port: config.port,
+    port: Number(config.port),
     username: config.username,
-    auth_type: config.authType,
-    credential_id: config.credentialId,
+    auth_type: String(config.authType),
+    credential_id: config.credentialId ?? null,
   };
-  console.log('[connectSSH] payload:', JSON.stringify(payload));
+  console.log('[connectSSH] calling with config:', JSON.stringify(payload));
   return tauriInvoke<string>('connect_ssh', { config: payload });
 }
 

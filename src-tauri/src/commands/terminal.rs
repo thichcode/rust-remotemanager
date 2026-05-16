@@ -12,10 +12,16 @@ use uuid::Uuid;
 pub fn connect_ssh(
     app_handle: tauri::AppHandle,
     state: State<AppState>,
-    config: SshConfig,
+    // Accept JSON string or plain object; log whatever arrives for debugging
+    config: serde_json::Value,
 ) -> AppResult<String> {
+    tracing::warn!("[connect_ssh] raw config JSON: {}", config);
+    let config_val = config.clone();
+    let config: SshConfig = serde_json::from_value(config).map_err(|e| {
+        AppError::Validation(format!("failed to parse config: {} — input: {}", e, config_val))
+    })?;
     tracing::info!(
-        "[connect_ssh] received config: host={}, port={}, username={}, auth_type={}",
+        "[connect_ssh] parsed: host={}, port={}, username={}, auth_type={}",
         config.host, config.port, config.username, config.auth_type
     );
     let session_id = Uuid::new_v4().to_string();
