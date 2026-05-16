@@ -14,6 +14,11 @@ export default function TerminalPage() {
   const navigate = useNavigate();
   const { sessions, updateSessionState, removeSession } = useSessionStore();
 
+  console.log('[TerminalPage] render, sessionId:', sessionId, 'sessions count:', sessions.length);
+  if (sessionId) {
+    const found = sessions.find((s) => s.id === sessionId);
+    console.log('[TerminalPage] session found:', found ? JSON.stringify(found) : 'null');
+  }
   const session = sessions.find((s) => s.id === sessionId);
 
   // Listen to Rust-side state change events and sync to store

@@ -145,6 +145,7 @@ export default function Connections() {
   };
 
   const handleConnect = async (connection: Connection) => {
+    console.log('[Connections] handleConnect start:', connection.name, connection.host);
     try {
       const result = await connectSSH({
         connectionId: connection.id,
@@ -155,7 +156,10 @@ export default function Connections() {
         credentialId: connection.credentialId,
       });
 
+      console.log('[Connections] connectSSH result:', JSON.stringify(result));
+
       if (result.success && result.data) {
+        console.log('[Connections] connectSSH success, sessionId:', result.data);
         // Rust returns session_id (String), not TerminalSession object
         addSession({
           id: result.data,
@@ -163,11 +167,14 @@ export default function Connections() {
           state: 'connecting',
           createdAt: new Date().toISOString(),
         });
+        console.log('[Connections] navigating to /terminal/' + result.data);
         navigate(`/terminal/${result.data}`);
       } else {
+        console.error('[Connections] connectSSH failed:', result.error);
         toast.error(result.error ?? 'Failed to connect');
       }
     } catch (err: any) {
+      console.error('[Connections] connectSSH exception:', err?.message ?? String(err));
       toast.error(err?.message ?? 'Connection failed');
     }
   };
