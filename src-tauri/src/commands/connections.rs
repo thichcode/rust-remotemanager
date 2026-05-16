@@ -33,6 +33,11 @@ pub fn create_connection(
     logging::log_debug("create_connection".into(), payload.to_string())
         .map_err(|e| format!("log write failed: {}", e))?;
 
+    // Log the raw incoming request for debugging
+    let req_json = serde_json::to_string(&req).unwrap_or_default();
+    logging::log_debug("create_connection_raw_req".into(), req_json)
+        .map_err(|e| format!("log write failed: {}", e))?;
+
     let db = state.db.lock().unwrap();
     let repo = ConnectionRepository::new(&db);
     let result = repo.create(req);

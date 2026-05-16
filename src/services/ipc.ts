@@ -58,12 +58,16 @@ export async function listConnections(): Promise<IpcResult<Connection[]>> {
   return tauriInvoke<Connection[]>('list_connections');
 }
 
+import { logJson } from './logging';
+
 export async function createConnection(data: ConnectionFormData): Promise<IpcResult<Connection>> {
   const payload = preparePayload(data);
   // tags: string[] → JSON string for Rust's Option<String>
   if (data.tags && Array.isArray(data.tags)) {
     payload.tags = JSON.stringify(data.tags);
   }
+  // Log the actual IPC payload for debugging
+  await logJson('createConnection_ipc_payload', payload);
   // startup_commands is already a newline-delimited string in ConnectionFormData
   return tauriInvoke<Connection>('create_connection', { req: payload });
 }
