@@ -417,7 +417,7 @@ export default function ConnectionForm({
               Tags
             </label>
             <div className="flex items-center gap-2 flex-wrap mb-2">
-              {formData.tags.map((tag) => (
+              {Array.isArray(formData.tags) && formData.tags.map((tag) => (
                 <span
                   key={tag}
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-[var(--bg-tertiary)] text-[var(--text-secondary)]"

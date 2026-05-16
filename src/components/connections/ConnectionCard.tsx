@@ -106,7 +106,7 @@ export default function ConnectionCard({
                 {connection.username}@{connection.host}:{connection.port}
               </p>
               {/* Tags */}
-              {connection.tags && connection.tags.length > 0 && (
+              {Array.isArray(connection.tags) && connection.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1.5">
                   {connection.tags.map((tag) => (
                     <span
