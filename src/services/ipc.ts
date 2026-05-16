@@ -132,7 +132,12 @@ export async function connectSSH(config: {
   authType: string;
   credentialId?: string;
 }): Promise<IpcResult<string>> {
-  return tauriInvoke<string>('connect_ssh', { config: preparePayload(config) });
+  const payload = preparePayload(config);
+  // Ensure auth_type is always present (preparePayload may miss enum-to-string conversion)
+  if (config.authType !== undefined) {
+    payload.auth_type = String(config.authType);
+  }
+  return tauriInvoke<string>('connect_ssh', { config: payload });
 }
 
 export async function disconnectSession(id: string): Promise<IpcResult<void>> {
