@@ -134,6 +134,7 @@ pub fn run() {
             commands::vault::vault_lock,
             commands::settings::get_settings,
             commands::settings::update_setting,
+            commands::rdp::connect_rdp,
             commands::app::get_app_info,
         ])
         .run(tauri::generate_context!())

@@ -126,6 +126,21 @@ export async function pickSSHKeyFile(): Promise<IpcResult<string>> {
   return tauriInvoke<string>('pick_ssh_key_file');
 }
 
+// ─── RDP Connections ────────────────────────────────────────────────────────
+
+export async function connectRDP(config: {
+  host: string;
+  port: number;
+  username?: string;
+}): Promise<IpcResult<string>> {
+  const payload = {
+    host: config.host,
+    port: config.port,
+    username: config.username ?? null,
+  };
+  return tauriInvoke<string>('connect_rdp', { config: payload });
+}
+
 // ─── Terminal Sessions ──────────────────────────────────────────────────────
 
 export async function connectSSH(config: {

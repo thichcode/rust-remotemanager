@@ -2,6 +2,7 @@ pub mod app;
 pub mod connections;
 pub mod credentials;
 pub mod folders;
+pub mod rdp;
 pub mod settings;
 pub mod sftp;
 pub mod terminal;

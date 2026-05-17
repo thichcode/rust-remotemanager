@@ -17,7 +17,7 @@ import ConnectionList from '../components/connections/ConnectionList';
 import FolderTree from '../components/connections/FolderTree';
 import ConnectionForm from '../components/connections/ConnectionForm';
 import type { Connection, ConnectionFormData } from '../services/types';
-import { connectSSH } from '../services/ipc';
+import { connectSSH, connectRDP } from '../services/ipc';
 import toast from 'react-hot-toast';
 import { useSessionStore } from '../stores/sessionStore';
 
@@ -149,6 +149,20 @@ export default function Connections() {
   const handleConnect = async (connection: Connection) => {
     console.log('[Connections] handleConnect start:', connection.name, connection.host);
     try {
+      if (connection.type === 'rdp') {
+        const result = await connectRDP({
+          host: connection.host,
+          port: connection.port,
+          username: connection.username,
+        });
+        if (result.success) {
+          toast.success(`RDP connection to ${connection.host} launched`);
+        } else {
+          toast.error(result.error ?? 'Failed to launch RDP');
+        }
+        return;
+      }
+
       const result = await connectSSH({
         connectionId: connection.id,
         host: connection.host,
