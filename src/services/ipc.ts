@@ -181,6 +181,10 @@ export async function connectSSH(config: {
   return tauriInvoke<string>('connect_ssh', { config: payload });
 }
 
+export async function getSessionState(id: string): Promise<IpcResult<string | null>> {
+  return tauriInvoke<string | null>('get_session_state', { id });
+}
+
 export async function disconnectSession(id: string): Promise<IpcResult<void>> {
   return tauriInvoke<void>('disconnect_session', { id });
 }
@@ -195,8 +199,8 @@ export async function terminalResize(id: string, cols: number, rows: number): Pr
 
 // ─── Vault ──────────────────────────────────────────────────────────────────
 
-export async function vaultStatus(): Promise<IpcResult<{ locked: boolean }>> {
-  return tauriInvoke<{ locked: boolean }>('vault_status');
+export async function vaultStatus(): Promise<IpcResult<boolean>> {
+  return tauriInvoke<boolean>('vault_status');
 }
 
 export async function vaultUnlock(password: string): Promise<IpcResult<void>> {
@@ -209,8 +213,8 @@ export async function vaultLock(): Promise<IpcResult<void>> {
 
 // ─── Settings ───────────────────────────────────────────────────────────────
 
-export async function getSettings(): Promise<IpcResult<Setting[]>> {
-  return tauriInvoke<Setting[]>('get_settings');
+export async function getSettings(): Promise<IpcResult<Record<string, string>>> {
+  return tauriInvoke<Record<string, string>>('get_settings');
 }
 
 export async function updateSetting(key: string, value: string): Promise<IpcResult<void>> {

@@ -37,6 +37,18 @@ pub enum SessionState {
     Error(String),
 }
 
+impl SessionState {
+    /// Convert to a simple string for the frontend.
+    pub fn to_simple_string(&self) -> String {
+        match self {
+            SessionState::Disconnected => "disconnected".to_string(),
+            SessionState::Connecting => "connecting".to_string(),
+            SessionState::Connected { .. } => "connected".to_string(),
+            SessionState::Error(_) => "error".to_string(),
+        }
+    }
+}
+
 /// Commands that can be sent to a session's I/O thread.
 #[derive(Debug)]
 pub enum ChannelCommand {
@@ -288,6 +300,7 @@ fn run_ssh_session(
     };
 
     let mut buf = [0u8; 4096];
+    let mut keepalive_counter: u32 = 0;
 
     // ── Main I/O loop ──────────────────────────────────────────────
     loop {
@@ -386,6 +399,15 @@ fn run_ssh_session(
 
         // 4. Brief sleep to prevent busy-waiting when idle.
         thread::sleep(Duration::from_millis(10));
+
+        // 5. Periodic keepalive send (every ~1s = 100 iterations at 10ms)
+        keepalive_counter += 1;
+        if keepalive_counter >= 100 {
+            keepalive_counter = 0;
+            if let Some(ref session) = *ssh_session_storage.lock().unwrap() {
+                let _ = session.keepalive_send();
+            }
+        }
     }
 
     // Cleanup when `running` was set to false externally.

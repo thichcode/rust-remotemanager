@@ -82,13 +82,20 @@ pub fn run() {
 
             // Restore vault salt from persistent storage
             if let Some(salt_hex) = settings.get("vault_salt") {
-                if let Ok(salt_bytes) = hex::decode(salt_hex) {
-                    if salt_bytes.len() == 32 {
+                match hex::decode(salt_hex) {
+                    Ok(salt_bytes) if salt_bytes.len() == 32 => {
                         let mut salt = [0u8; 32];
                         salt.copy_from_slice(&salt_bytes);
                         vault.set_salt(salt);
                         tracing::info!("Vault salt restored from storage");
                     }
+                    Ok(_) => tracing::warn!(
+                        "Vault salt has wrong length (expected 32 bytes), ignoring"
+                    ),
+                    Err(e) => tracing::warn!(
+                        "Failed to decode vault salt from storage: {}",
+                        e
+                    ),
                 }
             }
 

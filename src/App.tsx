@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from './themes/theme';
 import Sidebar from './components/layout/Sidebar';
@@ -16,9 +16,10 @@ import { useSessionStore } from './stores/sessionStore';
 
 function AppLayout({ children }: { children: ReactNode }) {
   const { sessions } = useSessionStore();
+  const navigate = useNavigate();
 
   const handleNewConnection = () => {
-    window.location.href = '/connections';
+    navigate('/connections');
   };
 
   return (

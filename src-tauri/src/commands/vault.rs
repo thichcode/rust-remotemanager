@@ -13,10 +13,11 @@ fn re_encrypt_plaintext_credentials(
 ) -> AppResult<()> {
     let repo = CredentialRepository::new(conn);
     let credentials = repo.list()?;
-    let mut has_updates = false;
+    let mut any_updated = false;
 
     for cred in &credentials {
         let mut updated = cred.clone();
+        let mut changed = false;
 
         // Re-encrypt password if it starts with PLAINTEXT:
         if let Some(ref pw_data) = cred.encrypted_password {
@@ -28,7 +29,7 @@ fn re_encrypt_plaintext_credentials(
                 let mut combined = nonce;
                 combined.extend_from_slice(&ct);
                 updated.encrypted_password = Some(combined);
-                has_updates = true;
+                changed = true;
             }
         }
 
@@ -42,16 +43,17 @@ fn re_encrypt_plaintext_credentials(
                 let mut combined = nonce;
                 combined.extend_from_slice(&ct);
                 updated.encrypted_private_key = Some(combined);
-                has_updates = true;
+                changed = true;
             }
         }
 
-        if has_updates {
+        if changed {
             repo.update(updated)?;
+            any_updated = true;
         }
     }
 
-    if has_updates {
+    if any_updated {
         tracing::info!("Re-encrypted plaintext credentials after vault unlock");
     }
 
@@ -73,17 +75,18 @@ pub fn vault_unlock(
     state: State<AppState>,
     password: String,
 ) -> AppResult<()> {
+    let conn = state.db.lock().unwrap();
     let mut vault = state.vault.lock().unwrap();
     vault.unlock(&password).map_err(|e| {
         AppError::Vault(format!("Failed to unlock vault: {}", e))
     })?;
 
-    let conn = state.db.lock().unwrap();
-
     // Persist salt for re-unlock after restart
     if let Some(salt) = vault.get_salt() {
         let mut settings = state.settings.lock().unwrap();
-        settings.set(&conn, "vault_salt", &hex::encode(salt))?;
+        if let Err(e) = settings.set(&conn, "vault_salt", &hex::encode(salt)) {
+            tracing::error!("Failed to persist vault salt: {}", e);
+        }
     }
 
     // Re-encrypt any plaintext credentials

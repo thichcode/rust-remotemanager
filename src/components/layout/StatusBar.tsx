@@ -23,7 +23,7 @@ export default function StatusBar() {
       try {
         const result = await vaultStatus();
         if (result.success && result.data) {
-          setVaultLocked(result.data.locked);
+          setVaultLocked(result.data);
         }
       } catch {
         // Vault not available

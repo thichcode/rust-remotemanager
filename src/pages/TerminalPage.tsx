@@ -6,24 +6,29 @@ import {
   listenToTerminalConnected,
   listenToTerminalError,
   listenToTerminalExit,
+  getSessionState,
 } from '../services/ipc';
 import TerminalSessionComponent from '../components/terminal/TerminalSession';
+import type { TerminalSessionState } from '../services/types';
 
 export default function TerminalPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const { sessions, updateSessionState, removeSession } = useSessionStore();
 
-  console.log('[TerminalPage] render, sessionId:', sessionId, 'sessions count:', sessions.length);
-  if (sessionId) {
-    const found = sessions.find((s) => s.id === sessionId);
-    console.log('[TerminalPage] session found:', found ? JSON.stringify(found) : 'null');
-  }
   const session = sessions.find((s) => s.id === sessionId);
 
   // Listen to Rust-side state change events and sync to store
   useEffect(() => {
     if (!sessionId) return;
+
+    // Fallback: sync state from Rust in case events were already emitted before mount
+    (async () => {
+      const result = await getSessionState(sessionId);
+      if (result.success && result.data) {
+        updateSessionState(sessionId, result.data as TerminalSessionState);
+      }
+    })();
 
     let connectedUnlisten: (() => void) | undefined;
     let errorUnlisten: (() => void) | undefined;
