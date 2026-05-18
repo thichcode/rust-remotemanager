@@ -3,7 +3,8 @@ import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { SearchAddon } from 'xterm-addon-search';
 import { WebLinksAddon } from 'xterm-addon-web-links';
-import { terminalInput, terminalResize, listenToTerminalOutput } from '../services/ipc';
+import { terminalInput, terminalResize } from '../services/ipc';
+import { flushBuffer, setWriter, clearWriter, cleanupBuffer } from '../services/outputBuffer';
 
 interface UseTerminalOptions {
   sessionId: string;
@@ -97,21 +98,33 @@ export function useTerminal({ sessionId, onData }: UseTerminalOptions): UseTermi
         // Ignore fit errors
       }
       setIsReady(true);
+      // Flush any output buffered before terminal was ready, then register
+      // a writer so future pushOutput calls go directly to xterm.
+      if (sessionId) {
+        const writer = (data: string) => { try { term.write(data); } catch { /* ignore */ } };
+        flushBuffer(sessionId, writer);
+        setWriter(sessionId, writer);
+      }
     }, 50);
 
-    // Handle resize
+    // Handle resize with debounce to prevent infinite loop when terminal output
+    // causes pixel-level layout shifts that re-trigger ResizeObserver.
+    let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
     const resizeObserver = new ResizeObserver(() => {
-      try {
-        fitAddon.fit();
-        if (sessionId) {
-          const dims = fitAddon.proposeDimensions();
-          if (dims) {
-            terminalResize(sessionId, dims.cols, dims.rows);
+      if (resizeTimeout) clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        try {
+          fitAddon.fit();
+          if (sessionId) {
+            const dims = fitAddon.proposeDimensions();
+            if (dims) {
+              terminalResize(sessionId, dims.cols, dims.rows);
+            }
           }
+        } catch {
+          // Ignore resize errors
         }
-      } catch {
-        // Ignore resize errors
-      }
+      }, 100);
     });
 
     if (terminalRef.current) {
@@ -133,6 +146,7 @@ export function useTerminal({ sessionId, onData }: UseTerminalOptions): UseTermi
 
     // Cleanup
     return () => {
+      if (resizeTimeout) clearTimeout(resizeTimeout);
       resizeObserver.disconnect();
       document.removeEventListener('keydown', handleKeyDown);
       term.dispose();
@@ -140,6 +154,7 @@ export function useTerminal({ sessionId, onData }: UseTerminalOptions): UseTermi
       fitAddonInstance.current = null;
       searchAddonInstance.current = null;
       setIsReady(false);
+      if (sessionId) { clearWriter(sessionId); cleanupBuffer(sessionId); }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -160,32 +175,6 @@ export function useTerminal({ sessionId, onData }: UseTerminalOptions): UseTermi
       disposable.dispose();
     };
   }, [sessionId, onData]);
-
-  // Listen for terminal output events
-  useEffect(() => {
-    if (!sessionId) return;
-
-    let unlisten: (() => void) | undefined;
-
-    const setup = async () => {
-      try {
-        unlisten = await listenToTerminalOutput(sessionId, (event) => {
-          const term = terminalInstance.current;
-          if (term) {
-            term.write(event.data);
-          }
-        });
-      } catch (err) {
-        console.error('Failed to listen to terminal output:', err);
-      }
-    };
-
-    setup();
-
-    return () => {
-      unlisten?.();
-    };
-  }, [sessionId]);
 
   // Fit terminal when search visibility changes
   useEffect(() => {

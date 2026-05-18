@@ -61,25 +61,21 @@ export async function listConnections(): Promise<IpcResult<Connection[]>> {
 import { logJson } from './logging';
 
 export async function createConnection(data: ConnectionFormData): Promise<IpcResult<Connection>> {
-  const payload = preparePayload(data);
-  // tags: string[] → JSON string for Rust's Option<String>
+  const payload = { ...data } as Record<string, unknown>;
   if (data.tags && Array.isArray(data.tags)) {
     payload.tags = JSON.stringify(data.tags);
   }
-  // Log the actual IPC payload for debugging
   await logJson('createConnection_ipc_payload', payload);
-  // startup_commands is already a newline-delimited string in ConnectionFormData
   return tauriInvoke<Connection>('create_connection', { req: payload });
 }
 
 export async function updateConnection(data: Connection): Promise<IpcResult<Connection>> {
-  const payload = preparePayload(data);
-  // tags & startupCommands: string[] → JSON string for Rust's Option<String>
+  const payload = { ...data } as Record<string, unknown>;
   if (data.tags && Array.isArray(data.tags)) {
     payload.tags = JSON.stringify(data.tags);
   }
   if (data.startupCommands && Array.isArray(data.startupCommands)) {
-    payload.startup_commands = JSON.stringify(data.startupCommands);
+    payload.startupCommands = JSON.stringify(data.startupCommands);
   }
   return tauriInvoke<Connection>('update_connection', { conn: payload });
 }
@@ -95,11 +91,11 @@ export async function listFolders(): Promise<IpcResult<Folder[]>> {
 }
 
 export async function createFolder(data: Omit<Folder, 'id' | 'createdAt' | 'updatedAt'>): Promise<IpcResult<Folder>> {
-  return tauriInvoke<Folder>('create_folder', preparePayload(data));
+  return tauriInvoke<Folder>('create_folder', data as unknown as Record<string, unknown>);
 }
 
 export async function updateFolder(data: Folder): Promise<IpcResult<Folder>> {
-  return tauriInvoke<Folder>('update_folder', preparePayload(data));
+  return tauriInvoke<Folder>('update_folder', data as unknown as Record<string, unknown>);
 }
 
 export async function deleteFolder(id: string): Promise<IpcResult<void>> {
@@ -168,16 +164,13 @@ export async function connectSSH(config: {
   authType: string;
   credentialId?: string;
 }): Promise<IpcResult<string>> {
-  // Build payload with explicit snake_case keys — no preparePayload to avoid nesting bugs
   const payload: Record<string, unknown> = {
-    connection_id: config.connectionId,
     host: config.host,
     port: Number(config.port),
     username: config.username,
-    auth_type: String(config.authType),
-    credential_id: config.credentialId ?? null,
+    authType: String(config.authType),
+    credentialId: config.credentialId ?? null,
   };
-  console.log('[connectSSH] calling with config:', JSON.stringify(payload));
   return tauriInvoke<string>('connect_ssh', { config: payload });
 }
 
@@ -187,6 +180,10 @@ export async function getSessionState(id: string): Promise<IpcResult<string | nu
 
 export async function disconnectSession(id: string): Promise<IpcResult<void>> {
   return tauriInvoke<void>('disconnect_session', { id });
+}
+
+export async function flushSessionOutput(id: string): Promise<IpcResult<string[]>> {
+  return tauriInvoke<string[]>('flush_session_output', { id });
 }
 
 export async function terminalInput(id: string, data: string): Promise<IpcResult<void>> {

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// Represents a folder in the connection tree hierarchy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Folder {
     pub id: String,
     pub name: String,
@@ -13,6 +14,7 @@ pub struct Folder {
 
 /// Represents a remote connection (SSH, RDP, Serial, etc.).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Connection {
     pub id: String,
     pub name: String,
@@ -41,6 +43,7 @@ pub struct Connection {
 
 /// Represents stored authentication credentials with encrypted secrets.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Credential {
     pub id: String,
     pub name: String,
@@ -70,6 +73,7 @@ pub struct SessionLog {
 
 /// Request payload for creating a new connection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ConnectionCreateRequest {
     pub name: String,
     #[serde(rename = "type")]

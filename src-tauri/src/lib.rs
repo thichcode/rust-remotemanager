@@ -19,6 +19,7 @@ use ssh::session::SessionManager;
 use ssh::tunnels::TunnelManager;
 use std::sync::Mutex;
 use tauri::Manager;
+use tracing_appender::non_blocking::WorkerGuard;
 
 /// Application state shared across all Tauri commands via `app.manage()`.
 pub struct AppState {
@@ -27,6 +28,7 @@ pub struct AppState {
     pub sessions: Mutex<SessionManager>,
     pub tunnels: Mutex<TunnelManager>,
     pub settings: Mutex<SettingsManager>,
+    pub _logging_guard: WorkerGuard,
 }
 
 /// Initialize the database: create the app data directory, open the SQLite file,
@@ -50,15 +52,29 @@ fn initialize_database(app: &tauri::App) -> Result<Connection, Box<dyn std::erro
     Ok(conn)
 }
 
-/// Initialize the tracing / logging subscriber with sensible defaults.
-fn setup_logging() {
+/// Initialize the tracing / logging subscriber. Returns the guard that must
+/// be kept alive for the duration of the program.
+fn setup_logging() -> WorkerGuard {
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "hermes_remote_manager=debug,tauri=warn".into());
+
+    let log_dir = std::env::current_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join("logs");
+    let _ = std::fs::create_dir_all(&log_dir);
+
+    let file_appender = tracing_appender::rolling::daily(&log_dir, "hermes.log");
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+
     tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "hermes_remote_manager=info,tauri=info".into()),
-        )
+        .with_env_filter(filter)
+        .with_writer(non_blocking)
+        .with_ansi(false)
         .compact()
         .init();
+
+    tracing::info!("Logging initialized, writing to {:?}", log_dir);
+    guard
 }
 
 // ──────────────────────────────────────────────
@@ -67,12 +83,12 @@ fn setup_logging() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    setup_logging();
+    let logging_guard = setup_logging();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
-        .setup(|app| {
+        .setup(move |app| {
             let conn = initialize_database(app).expect("failed to initialize database");
             let mut vault = Vault::new();
             let sessions = SessionManager::new();
@@ -105,6 +121,7 @@ pub fn run() {
                 sessions: Mutex::new(sessions),
                 tunnels: Mutex::new(tunnels),
                 settings: Mutex::new(settings),
+                _logging_guard: logging_guard,
             };
 
             app.manage(state);
@@ -138,6 +155,7 @@ pub fn run() {
             commands::terminal::terminal_resize,
             commands::terminal::list_sessions,
             commands::terminal::get_session_state,
+            commands::terminal::flush_session_output,
             commands::sftp::list_sftp_dir,
             commands::sftp::sftp_download,
             commands::sftp::sftp_upload,

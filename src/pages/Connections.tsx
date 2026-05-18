@@ -17,7 +17,8 @@ import ConnectionList from '../components/connections/ConnectionList';
 import FolderTree from '../components/connections/FolderTree';
 import ConnectionForm from '../components/connections/ConnectionForm';
 import type { Connection, ConnectionFormData } from '../services/types';
-import { connectSSH, connectRDP } from '../services/ipc';
+import { connectSSH, connectRDP, listenToTerminalOutput, flushSessionOutput } from '../services/ipc';
+import { initBuffer, pushOutput } from '../services/outputBuffer';
 import toast from 'react-hot-toast';
 import { useSessionStore } from '../stores/sessionStore';
 
@@ -175,16 +176,42 @@ export default function Connections() {
       console.log('[Connections] connectSSH result:', JSON.stringify(result));
 
       if (result.success && result.data) {
-        console.log('[Connections] connectSSH success, sessionId:', result.data);
-        // Rust returns session_id (String), not TerminalSession object
+        const sessionId = result.data;
+        console.log('[Connections] connectSSH success, sessionId:', sessionId);
+
+        // Register output listener BEFORE flushSessionOutput so there is no
+        // gap between output_ready=true on Rust and event forwarding to JS.
+        initBuffer(sessionId);
+        console.log('[Connections] buffer init for', sessionId);
+        listenToTerminalOutput(sessionId, (event) => {
+          console.log('[Connections] terminal:output received:', JSON.stringify(event.data).substring(0, 100));
+          pushOutput(sessionId, event.data);
+        }).then(async () => {
+          console.log('[Connections] listenToTerminalOutput .then() fired for', sessionId);
+          const flushed = await flushSessionOutput(sessionId);
+          console.log('[Connections] flushSessionOutput result:', JSON.stringify(flushed));
+          if (flushed.success && flushed.data) {
+            console.log('[Connections] flushing', flushed.data.length, 'buffered items');
+            for (const chunk of flushed.data) {
+              pushOutput(sessionId, chunk);
+            }
+          } else {
+            console.warn('[Connections] flushSessionOutput failed:', flushed.error);
+          }
+          console.log('[Connections] about to navigate to /terminal/', sessionId);
+          navigate(`/terminal/${sessionId}`);
+        }).catch((err) => {
+          console.error('[Connections] listenToTerminalOutput error:', err);
+          console.log('[Connections] navigating anyway to /terminal/', sessionId);
+          navigate(`/terminal/${sessionId}`);
+        });
+
         addSession({
-          id: result.data,
+          id: sessionId,
           connectionId: connection.id,
           state: 'connecting',
           createdAt: new Date().toISOString(),
         });
-        console.log('[Connections] navigating to /terminal/' + result.data);
-        navigate(`/terminal/${result.data}`);
       } else {
         console.error('[Connections] connectSSH failed:', result.error);
         toast.error(result.error ?? 'Failed to connect');

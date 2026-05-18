@@ -35,6 +35,10 @@ export default function TerminalPage() {
     let exitUnlisten: (() => void) | undefined;
 
     const setup = async () => {
+      // Note: terminal:output listener is registered in Connections.tsx (before
+      // navigation) to avoid losing events. Output data goes through
+      // outputBuffer.ts global buffer, flushed by useTerminal when xterm is ready.
+
       connectedUnlisten = await listenToTerminalConnected(sessionId, (payload) => {
         if (payload.id === sessionId) {
           updateSessionState(sessionId, 'connected');

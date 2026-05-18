@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use ssh2::Channel;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -12,6 +12,7 @@ use tauri::{AppHandle, Emitter};
 
 /// Configuration for establishing an SSH connection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SshConfig {
     pub host: String,
     pub port: u16,
@@ -66,6 +67,10 @@ pub struct SshSession {
     pub ssh_session: Arc<Mutex<Option<ssh2::Session>>>,
     pub cmd_tx: Option<Sender<ChannelCommand>>,
     pub thread_handle: Option<thread::JoinHandle<()>>,
+    /// Buffer for terminal output emitted before the frontend subscribes.
+    pub output_buffer: Arc<Mutex<VecDeque<String>>>,
+    /// Once true, the I/O thread emits output directly instead of buffering.
+    pub output_ready: Arc<AtomicBool>,
 }
 
 impl SshSession {
@@ -78,6 +83,8 @@ impl SshSession {
             ssh_session: Arc::new(Mutex::new(None)),
             cmd_tx: None,
             thread_handle: None,
+            output_buffer: Arc::new(Mutex::new(VecDeque::new())),
+            output_ready: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -121,6 +128,8 @@ impl SessionManager {
         let state = Arc::new(Mutex::new(SessionState::Connecting));
         let running = Arc::new(AtomicBool::new(true));
         let ssh_session_storage: Arc<Mutex<Option<ssh2::Session>>> = Arc::new(Mutex::new(None));
+        let output_buffer: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::new()));
+        let output_ready: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
 
         let (cmd_tx, cmd_rx) = mpsc::channel::<ChannelCommand>();
 
@@ -132,6 +141,8 @@ impl SessionManager {
             cmd_tx: Some(cmd_tx),
             thread_handle: None,
             ssh_session: ssh_session_storage.clone(),
+            output_buffer: output_buffer.clone(),
+            output_ready: output_ready.clone(),
         };
 
         // Insert a placeholder; we'll set the thread handle after spawning.
@@ -152,6 +163,8 @@ impl SessionManager {
                     thread_running,
                     cmd_rx,
                     ssh_session_storage,
+                    output_buffer,
+                    output_ready,
                 );
             })
             .expect("failed to spawn SSH I/O thread");
@@ -189,6 +202,23 @@ impl SessionManager {
         } else {
             None
         }
+    }
+
+    /// Set output_ready to true and return all buffered terminal output.
+    /// Called by the frontend after it registers its terminal:output listener,
+    /// ensuring the I/O thread emits directly from this point onward.
+    pub fn flush_output(&self, id: &str) -> Option<Vec<String>> {
+        let session = self.sessions.get(id)?;
+        tracing::info!(
+            "[{}] flush_output called, buffered {} items before switching to direct emit",
+            id,
+            session.output_buffer.lock().unwrap().len()
+        );
+        session.output_ready.store(true, Ordering::SeqCst);
+        let mut buf = session.output_buffer.lock().unwrap();
+        let result: Vec<String> = buf.drain(..).collect();
+        tracing::info!("[{}] flush_output drained {} items, output_ready=true", id, result.len());
+        Some(result)
     }
 
     /// Send input data to an active session's SSH channel.
@@ -262,8 +292,11 @@ fn run_ssh_session(
     running: Arc<AtomicBool>,
     cmd_rx: Receiver<ChannelCommand>,
     ssh_session_storage: Arc<Mutex<Option<ssh2::Session>>>,
+    output_buffer: Arc<Mutex<VecDeque<String>>>,
+    output_ready: Arc<AtomicBool>,
 ) {
     let id = session_id.to_string();
+    tracing::info!("[{}] SSH I/O thread started, output_ready=false", id);
     let result = establish_connection(config);
 
     let mut channel = match result {
@@ -276,6 +309,7 @@ fn run_ssh_session(
                 cols: 80,
                 rows: 24,
             };
+            tracing::info!("[{}] SSH connected, emitting terminal:connected-{}", id, id);
             let _ = app_handle.emit(
                 &format!("terminal:connected-{}", id),
                 serde_json::json!({
@@ -284,6 +318,7 @@ fn run_ssh_session(
                     "rows": 24,
                 }),
             );
+            tracing::info!("[{}] terminal:connected-{} emitted successfully", id, id);
             ch
         }
         Err(e) => {
@@ -351,10 +386,16 @@ fn run_ssh_session(
                 }
                 Ok(n) => {
                     let data = String::from_utf8_lossy(&buf[..n]).to_string();
-                    let _ = app_handle.emit(
-                        &format!("terminal:output-{}", id),
-                        serde_json::json!({ "id": id, "data": data }),
-                    );
+                    tracing::debug!("[{}] read {} bytes, output_ready={}", id, n, output_ready.load(Ordering::SeqCst));
+                    if output_ready.load(Ordering::SeqCst) {
+                        let result = app_handle.emit(
+                            &format!("terminal:output-{}", id),
+                            serde_json::json!({ "id": id, "data": data }),
+                        );
+                        tracing::debug!("[{}] emit terminal:output result: {:?}", id, result.is_ok());
+                    } else {
+                        output_buffer.lock().unwrap().push_back(data);
+                    }
                     // Try to read more in the same batch.
                     continue;
                 }

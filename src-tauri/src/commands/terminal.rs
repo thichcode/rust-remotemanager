@@ -15,7 +15,7 @@ fn resolve_credential(
     conn: &Connection,
     vault: &Vault,
 ) -> AppResult<()> {
-    let credential_id = match config.get("credential_id").and_then(|v| v.as_str()) {
+    let credential_id = match config.get("credentialId").and_then(|v| v.as_str()) {
         Some(id) if !id.is_empty() => id.to_string(),
         _ => return Ok(()),
     };
@@ -49,7 +49,7 @@ fn resolve_credential(
 
     // Use key_path from credential if present
     if let Some(ref kp) = cred.key_path {
-        config.insert("key_path".into(), serde_json::Value::String(kp.clone()));
+        config.insert("keyPath".into(), serde_json::Value::String(kp.clone()));
     }
 
     Ok(())
@@ -162,4 +162,18 @@ pub fn list_sessions(state: State<AppState>) -> Vec<String> {
 pub fn get_session_state(state: State<AppState>, id: String) -> AppResult<Option<String>> {
     let sessions = state.sessions.lock().unwrap();
     Ok(sessions.get_state(&id).map(|s| s.to_simple_string()))
+}
+
+/// Set output_ready on the session and return any buffered terminal output.
+/// The frontend calls this AFTER its `listen` IPC completes so the I/O thread
+/// can switch from buffering to direct event emission without losing data.
+#[tauri::command]
+pub fn flush_session_output(state: State<AppState>, id: String) -> AppResult<Vec<String>> {
+    let sessions = state
+        .sessions
+        .lock()
+        .map_err(|e| AppError::Ssh(format!("Lock error: {}", e)))?;
+    sessions
+        .flush_output(&id)
+        .ok_or_else(|| AppError::NotFound(format!("Session '{}' not found", id)))
 }
