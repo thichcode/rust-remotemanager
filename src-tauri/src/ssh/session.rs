@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use ssh2::Channel;
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::net::TcpStream;
+use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
@@ -66,6 +66,18 @@ impl SshSession {
             ssh_session: Arc::new(Mutex::new(None)),
             cmd_tx: None,
             thread_handle: None,
+        }
+    }
+}
+
+impl Drop for SshSession {
+    fn drop(&mut self) {
+        self.running.store(false, Ordering::SeqCst);
+        if let Some(tx) = self.cmd_tx.take() {
+            let _ = tx.send(ChannelCommand::Close);
+        }
+        if let Some(handle) = self.thread_handle.take() {
+            let _ = handle.join();
         }
     }
 }
@@ -242,13 +254,12 @@ fn run_ssh_session(
     let id = session_id.to_string();
     let result = establish_connection(config);
 
-    // Store the SSH session for SFTP operations before using the channel.
-    if let Ok((ref session, _)) = result {
-        *ssh_session_storage.lock().unwrap() = Some(session.clone());
-    }
-
     let mut channel = match result {
-        Ok((_, ch)) => {
+        Ok((session, ch)) => {
+            // Set session non-blocking so channel.read() returns WouldBlock
+            session.set_blocking(false);
+            // Store for SFTP operations
+            *ssh_session_storage.lock().unwrap() = Some(session);
             *state.lock().unwrap() = SessionState::Connected {
                 cols: 80,
                 rows: 24,
@@ -275,11 +286,6 @@ fn run_ssh_session(
             return;
         }
     };
-
-    // Attempt to set non-blocking on the channel so reads don't hang
-    // indefinitely.  (Channel inherits blocking mode from the session's
-    // underlying TCP socket, which defaults to blocking.  We leave it
-    // blocking and use try_recv + a short sleep to poll for commands.)
 
     let mut buf = [0u8; 4096];
 
@@ -378,18 +384,7 @@ fn run_ssh_session(
             break;
         }
 
-        // 4. Check if the remote side has closed the channel.
-        if channel.eof() {
-            tracing::info!("[{}] channel eof", id);
-            let _ = app_handle.emit(
-                &format!("terminal:exit-{}", id),
-                serde_json::json!({ "id": id }),
-            );
-            *state.lock().unwrap() = SessionState::Disconnected;
-            return;
-        }
-
-        // 5. Brief sleep to prevent busy-waiting when idle.
+        // 4. Brief sleep to prevent busy-waiting when idle.
         thread::sleep(Duration::from_millis(10));
     }
 
@@ -402,12 +397,17 @@ fn run_ssh_session(
 /// TCP connect → SSH handshake → authenticate → open channel → PTY → shell.
 /// Returns both the `Session` and `Channel` so the session can be cloned for SFTP.
 fn establish_connection(config: &SshConfig) -> Result<(ssh2::Session, Channel), String> {
-    // 1. TCP connect
+    // 1. TCP connect with 15s timeout
     let addr = format!("{}:{}", config.host, config.port);
-    let tcp = TcpStream::connect(&addr)
+    let addrs: Vec<std::net::SocketAddr> = addr
+        .to_socket_addrs()
+        .map_err(|e| format!("DNS resolution failed for {}: {}", addr, e))?
+        .collect();
+    let socket_addr = addrs
+        .first()
+        .ok_or_else(|| format!("No addresses resolved for {}", addr))?;
+    let tcp = TcpStream::connect_timeout(socket_addr, Duration::from_secs(15))
         .map_err(|e| format!("TCP connection to {} failed: {}", addr, e))?;
-    tcp.set_nonblocking(false)
-        .map_err(|e| format!("Failed to set TCP stream blocking: {}", e))?;
 
     // 2. Create SSH session and handshake
     let mut session =
@@ -417,7 +417,14 @@ fn establish_connection(config: &SshConfig) -> Result<(ssh2::Session, Channel), 
         .handshake()
         .map_err(|e| format!("SSH handshake with {} failed: {}", config.host, e))?;
 
-    // 3. Authenticate
+    // 3. Enable SSH keepalive if configured
+    if let Some(interval) = config.keepalive_interval {
+        if interval > 0 {
+            session.set_keepalive(true, interval);
+        }
+    }
+
+    // 4. Authenticate
     match config.auth_type.as_str() {
         "password" => {
             let password = config.password.as_deref().unwrap_or("");
@@ -445,7 +452,7 @@ fn establish_connection(config: &SshConfig) -> Result<(ssh2::Session, Channel), 
         other => return Err(format!("Unknown authentication type: '{}'", other)),
     }
 
-    // 4. Open channel, request PTY, start shell
+    // 5. Open channel, request PTY, start shell
     let mut channel = session
         .channel_session()
         .map_err(|e| format!("Failed to open SSH channel: {}", e))?;

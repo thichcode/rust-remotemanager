@@ -74,11 +74,23 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let conn = initialize_database(app).expect("failed to initialize database");
-            let vault = Vault::new();
+            let mut vault = Vault::new();
             let sessions = SessionManager::new();
             let tunnels = TunnelManager::new();
             let settings =
                 SettingsManager::new(&conn).expect("failed to load settings");
+
+            // Restore vault salt from persistent storage
+            if let Some(salt_hex) = settings.get("vault_salt") {
+                if let Ok(salt_bytes) = hex::decode(salt_hex) {
+                    if salt_bytes.len() == 32 {
+                        let mut salt = [0u8; 32];
+                        salt.copy_from_slice(&salt_bytes);
+                        vault.set_salt(salt);
+                        tracing::info!("Vault salt restored from storage");
+                    }
+                }
+            }
 
             let state = AppState {
                 db: Mutex::new(conn),

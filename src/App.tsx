@@ -9,14 +9,25 @@ import Dashboard from './pages/Dashboard';
 import Connections from './pages/Connections';
 import TerminalPage from './pages/TerminalPage';
 import Settings from './pages/Settings';
+import TerminalTab from './components/terminal/TerminalTab';
+import { useSessionStore } from './stores/sessionStore';
 
 // ─── Layout ─────────────────────────────────────────────────────────────────
 
 function AppLayout({ children }: { children: ReactNode }) {
+  const { sessions } = useSessionStore();
+
+  const handleNewConnection = () => {
+    window.location.href = '/connections';
+  };
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[var(--bg-primary)]">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
+        {sessions.length > 0 && (
+          <TerminalTab onNewConnection={handleNewConnection} />
+        )}
         <MainArea>{children}</MainArea>
         <StatusBar />
       </div>

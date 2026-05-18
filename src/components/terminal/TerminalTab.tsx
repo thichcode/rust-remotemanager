@@ -1,8 +1,8 @@
-import { useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   X,
   Plus,
-  Terminal as TerminalIcon,
   Wifi,
   WifiOff,
   Loader2,
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useSessionStore } from '../../stores/sessionStore';
 import { useConnectionStore } from '../../stores/connectionStore';
+import { disconnectSession } from '../../services/ipc';
 
 interface TerminalTabProps {
   onNewConnection: () => void;
@@ -19,6 +20,7 @@ export default function TerminalTab({ onNewConnection }: TerminalTabProps) {
   const { sessions, activeSessionId, setActiveSession, removeSession } =
     useSessionStore();
   const { connections } = useConnectionStore();
+  const navigate = useNavigate();
 
   const getConnectionName = useCallback(
     (connectionId: string) => {
@@ -27,6 +29,17 @@ export default function TerminalTab({ onNewConnection }: TerminalTabProps) {
     },
     [connections],
   );
+
+  const handleTabClick = (sessionId: string) => {
+    setActiveSession(sessionId);
+    navigate(`/terminal/${sessionId}`);
+  };
+
+  const handleCloseTab = async (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    await disconnectSession(sessionId);
+    removeSession(sessionId);
+  };
 
   const stateIcons = {
     connecting: Loader2,
@@ -54,7 +67,7 @@ export default function TerminalTab({ onNewConnection }: TerminalTabProps) {
         return (
           <div
             key={session.id}
-            onClick={() => setActiveSession(session.id)}
+            onClick={() => handleTabClick(session.id)}
             className={`group flex items-center gap-2 px-3 py-2 text-xs font-medium border-r border-[var(--border)] cursor-pointer select-none transition-colors min-w-0 max-w-[160px] ${
               isActive
                 ? 'bg-[var(--bg-primary)] text-[var(--text-primary)]'
@@ -64,10 +77,7 @@ export default function TerminalTab({ onNewConnection }: TerminalTabProps) {
             <Icon size={12} className={`flex-shrink-0 ${color}`} />
             <span className="truncate">{name}</span>
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                removeSession(session.id);
-              }}
+              onClick={(e) => handleCloseTab(e, session.id)}
               className="p-0.5 rounded flex-shrink-0 opacity-0 group-hover:opacity-100 hover:bg-[var(--bg-tertiary)] hover:text-[var(--status-error)] transition-all"
             >
               <X size={12} />

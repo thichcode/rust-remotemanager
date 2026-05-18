@@ -23,6 +23,7 @@ rand = "0.8"
 zeroize = { version = "1", features = ["derive"] }
 thiserror = "1"
 directories = "5"
+hex = "0.4"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 rfd = "0.14"
