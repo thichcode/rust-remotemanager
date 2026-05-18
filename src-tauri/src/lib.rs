@@ -12,16 +12,17 @@ mod settings;
 pub mod ssh;
 mod storage;
 
+use parking_lot::Mutex;
 use rusqlite::Connection;
 use security::vault::Vault;
 use settings::SettingsManager;
 use ssh::session::SessionManager;
 use ssh::tunnels::TunnelManager;
-use std::sync::Mutex;
 use tauri::Manager;
 use tracing_appender::non_blocking::WorkerGuard;
 
 /// Application state shared across all Tauri commands via `app.manage()`.
+/// Uses `parking_lot::Mutex` for lock-free contention (no poisoning, faster).
 pub struct AppState {
     pub db: Mutex<Connection>,
     pub vault: Mutex<Vault>,

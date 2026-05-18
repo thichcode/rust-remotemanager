@@ -21,14 +21,12 @@ pub fn pick_ssh_key_file() -> AppResult<String> {
 /// List all stored credentials (encrypted blobs are returned as-is).
 #[tauri::command]
 pub fn list_credentials(state: State<AppState>) -> AppResult<Vec<Credential>> {
-    let db = state.db.lock().unwrap();
+    let db = state.db.lock();
     let repo = CredentialRepository::new(&db);
     repo.list()
 }
 
 /// Save a credential. Encrypts password/private key via the vault if unlocked.
-/// If the vault is locked, the credential is saved with raw plaintext data
-/// (which will be encrypted on next vault unlock — implement lazy encryption as needed).
 #[tauri::command]
 pub fn save_credential(
     state: State<AppState>,
@@ -40,8 +38,8 @@ pub fn save_credential(
     key_path: Option<String>,
     passphrase_protected: Option<bool>,
 ) -> AppResult<Credential> {
-    let db = state.db.lock().unwrap();
-    let vault = state.vault.lock().unwrap();
+    let db = state.db.lock();
+    let vault = state.vault.lock();
 
     let encrypted_password = if let Some(pw) = password {
         if vault.is_unlocked() {
@@ -52,7 +50,6 @@ pub fn save_credential(
             combined.extend_from_slice(&ct);
             Some(combined)
         } else {
-            // Store as raw bytes tagged with PLAINTEXT marker
             let mut buf = b"PLAINTEXT:".to_vec();
             buf.extend_from_slice(pw.as_bytes());
             Some(buf)
@@ -103,8 +100,115 @@ pub fn delete_credential(
     state: State<AppState>,
     id: String,
 ) -> AppResult<()> {
-    let db = state.db.lock().unwrap();
+    let db = state.db.lock();
     let repo = CredentialRepository::new(&db);
     repo.delete(&id)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::storage::database::Database;
+    use crate::storage::migrations;
+    use tempfile::NamedTempFile;
+
+    fn setup_repo() -> (CredentialRepository<'static>, Box<dyn std::any::Any>) {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+        let db = Database::new(&path).unwrap();
+        let conn = db.into_connection();
+        migrations::run(&conn).unwrap();
+        let conn: &'static rusqlite::Connection = Box::leak(Box::new(conn));
+        let repo = CredentialRepository::new(conn);
+        (repo, Box::new(tmp))
+    }
+
+    #[test]
+    fn test_list_empty() {
+        let (repo, _guard) = setup_repo();
+        let list = repo.list().unwrap();
+        assert_eq!(list.len(), 0);
+    }
+
+    #[test]
+    fn test_create_password_credential() {
+        let (repo, _guard) = setup_repo();
+        let cred = repo.create(Credential {
+            id: String::new(), name: "My Password".into(), auth_type: "password".into(),
+            username: Some("admin".into()), encrypted_password: Some(vec![1,2,3]),
+            key_type: None, encrypted_private_key: None, key_path: None,
+            passphrase_protected: false, created_at: String::new(), updated_at: String::new(),
+        }).unwrap();
+        assert_eq!(cred.name, "My Password");
+        assert!(!cred.id.is_empty());
+    }
+
+    #[test]
+    fn test_create_key_credential() {
+        let (repo, _guard) = setup_repo();
+        let cred = repo.create(Credential {
+            id: String::new(), name: "SSH Key".into(), auth_type: "key".into(),
+            username: Some("ubuntu".into()), encrypted_password: None,
+            key_type: Some("ed25519".into()), encrypted_private_key: Some(vec![4,5,6]),
+            key_path: Some("/home/user/.ssh/id_ed25519".into()),
+            passphrase_protected: true, created_at: String::new(), updated_at: String::new(),
+        }).unwrap();
+        assert_eq!(cred.auth_type, "key");
+        assert!(cred.key_path.is_some());
+    }
+
+    #[test]
+    fn test_get_by_id() {
+        let (repo, _guard) = setup_repo();
+        let cred = repo.create(Credential {
+            id: String::new(), name: "Test".into(), auth_type: "password".into(),
+            username: Some("test".into()), encrypted_password: Some(vec![10,20]),
+            key_type: None, encrypted_private_key: None, key_path: None,
+            passphrase_protected: false, created_at: String::new(), updated_at: String::new(),
+        }).unwrap();
+        let found = repo.get_by_id(&cred.id).unwrap().unwrap();
+        assert_eq!(found.name, "Test");
+    }
+
+    #[test]
+    fn test_update_credential() {
+        let (repo, _guard) = setup_repo();
+        let mut cred = repo.create(Credential {
+            id: String::new(), name: "Original".into(), auth_type: "password".into(),
+            username: None, encrypted_password: None, key_type: None,
+            encrypted_private_key: None, key_path: None,
+            passphrase_protected: false, created_at: String::new(), updated_at: String::new(),
+        }).unwrap();
+        cred.name = "Updated".into();
+        assert!(repo.update(cred.clone()).unwrap());
+        let found = repo.get_by_id(&cred.id).unwrap().unwrap();
+        assert_eq!(found.name, "Updated");
+    }
+
+    #[test]
+    fn test_delete_credential() {
+        let (repo, _guard) = setup_repo();
+        let cred = repo.create(Credential {
+            id: String::new(), name: "To Delete".into(), auth_type: "password".into(),
+            username: None, encrypted_password: None, key_type: None,
+            encrypted_private_key: None, key_path: None,
+            passphrase_protected: false, created_at: String::new(), updated_at: String::new(),
+        }).unwrap();
+        assert!(repo.delete(&cred.id).unwrap());
+        assert!(repo.get_by_id(&cred.id).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_delete_nonexistent() {
+        let (repo, _guard) = setup_repo();
+        assert!(!repo.delete("ghost").unwrap());
+    }
+
+    #[test]
+    fn test_get_by_id_not_found() {
+        let (repo, _guard) = setup_repo();
+        let result = repo.get_by_id("nonexistent").unwrap();
+        assert!(result.is_none());
+    }
 }

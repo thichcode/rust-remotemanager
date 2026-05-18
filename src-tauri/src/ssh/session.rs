@@ -439,11 +439,12 @@ fn run_ssh_session(
         }
 
         // 4. Brief sleep to prevent busy-waiting when idle.
-        thread::sleep(Duration::from_millis(10));
+        // Reduced from 10ms → 1ms for ≈10× lower idle latency
+        thread::sleep(Duration::from_millis(1));
 
-        // 5. Periodic keepalive send (every ~1s = 100 iterations at 10ms)
+        // 5. Periodic keepalive send (every ~1s = 1000 iterations at 1ms)
         keepalive_counter += 1;
-        if keepalive_counter >= 100 {
+        if keepalive_counter >= 1000 {
             keepalive_counter = 0;
             if let Some(ref session) = *ssh_session_storage.lock().unwrap() {
                 let _ = session.keepalive_send();
