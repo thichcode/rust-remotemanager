@@ -107,10 +107,13 @@ export function useTerminal({ sessionId, onData }: UseTerminalOptions): UseTermi
       }
     }, 50);
 
-    // Handle resize with debounce to prevent infinite loop when terminal output
-    // causes pixel-level layout shifts that re-trigger ResizeObserver.
+    // Handle resize via window resize event — NOT ResizeObserver — to avoid
+    // infinite loops where fit() → xterm re-renders → container changes →
+    // ResizeObserver fires → fit() → repeat. Only the window size matters
+    // for terminal dimensions; xterm output inside the container is irrelevant.
     let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
-    const resizeObserver = new ResizeObserver(() => {
+
+    const handleWindowResize = () => {
       if (resizeTimeout) clearTimeout(resizeTimeout);
       resizeTimeout = setTimeout(() => {
         try {
@@ -124,12 +127,10 @@ export function useTerminal({ sessionId, onData }: UseTerminalOptions): UseTermi
         } catch {
           // Ignore resize errors
         }
-      }, 100);
-    });
+      }, 150);
+    };
 
-    if (terminalRef.current) {
-      resizeObserver.observe(terminalRef.current);
-    }
+    window.addEventListener('resize', handleWindowResize);
 
     // Keyboard shortcut for search (Ctrl+F / Cmd+F)
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -141,13 +142,12 @@ export function useTerminal({ sessionId, onData }: UseTerminalOptions): UseTermi
         setSearchVisible(false);
       }
     };
-
     document.addEventListener('keydown', handleKeyDown);
 
     // Cleanup
     return () => {
       if (resizeTimeout) clearTimeout(resizeTimeout);
-      resizeObserver.disconnect();
+      window.removeEventListener('resize', handleWindowResize);
       document.removeEventListener('keydown', handleKeyDown);
       term.dispose();
       terminalInstance.current = null;

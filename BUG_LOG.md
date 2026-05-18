@@ -102,16 +102,14 @@
 
 ## 12. ResizeObserver infinite loop
 
-**Error:** Typing in terminal triggers infinite resize loop, freezing the app.  
-**Root cause:** xterm output → pixel-level layout shift → ResizeObserver fires → `fit()` called → terminal re-renders → ResizeObserver fires again → loop.  
-**Fix:** 100ms debounce on ResizeObserver callback in `src/hooks/useTerminal.ts`.
+## 14. ResizeObserver infinite loop — typing in terminal
 
-## 13. File logging for debugging
+**Error:** Typing quickly in xterm triggers infinite resize loop, freezing the app.  
+**Root cause:** `ResizeObserver` observed the terminal container div. Every keypress → xterm re-renders canvas → div pixel dimensions change → ResizeObserver fires → `fit()` → re-render → ResizeObserver fires again → infinite loop.  
+**Fix:** Replaced `ResizeObserver` with `window.addEventListener('resize', ...)`. Only the window size matters for terminal dimensions — xterm content changes inside the container are irrelevant to sizing.  
+**Files:** `src/hooks/useTerminal.ts`
 
-**Error:** No Rust-side log visibility in release builds.  
-**Fix:** Added `tracing-appender` crate + rolling daily log file at `logs/hermes.log.{date}` in `src-tauri/src/lib.rs`. Guard is kept alive in `AppState._logging_guard`.
-
-## 14. DevTools console hidden in release
+## 15. DevTools console hidden in release
 
 **Error:** Release builds use `windows_subsystem = "windows"`, hiding console.  
 **Fix:** For `npm run tauri dev` (debug build), console window is visible. For `npm run tauri build` (release), use `tauri dev` to see Rust + JS console output simultaneously.
