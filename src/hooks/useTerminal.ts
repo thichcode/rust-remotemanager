@@ -72,6 +72,7 @@ export function useTerminal({ sessionId, onData }: UseTerminalOptions): UseTermi
       disableStdin: false,
       cols: 80,
       rows: 24,
+      scrollOnUserInput: false,
     });
 
     const fitAddon = new FitAddon();

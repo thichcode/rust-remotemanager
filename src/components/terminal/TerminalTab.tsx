@@ -23,11 +23,19 @@ export default function TerminalTab({ onNewConnection }: TerminalTabProps) {
   const navigate = useNavigate();
 
   const getConnectionName = useCallback(
-    (connectionId: string) => {
+    (sessionId: string, connectionId: string) => {
       const conn = connections.find((c) => c.id === connectionId);
-      return conn?.name ?? `Session ${connectionId.slice(0, 8)}`;
+      const baseName = conn?.name ?? `Session ${connectionId.slice(0, 8)}`;
+      const sameConnSessions = sessions.filter(
+        (s) => s.connectionId === connectionId,
+      );
+      if (sameConnSessions.length > 1) {
+        const idx = sameConnSessions.findIndex((s) => s.id === sessionId) + 1;
+        return idx > 1 ? `${baseName} (${idx})` : baseName;
+      }
+      return baseName;
     },
-    [connections],
+    [connections, sessions],
   );
 
   const handleTabClick = (sessionId: string) => {
@@ -62,7 +70,7 @@ export default function TerminalTab({ onNewConnection }: TerminalTabProps) {
         const Icon = stateIcons[session.state];
         const color = stateColors[session.state];
         const isActive = session.id === activeSessionId;
-        const name = getConnectionName(session.connectionId);
+        const name = getConnectionName(session.id, session.connectionId);
 
         return (
           <div
