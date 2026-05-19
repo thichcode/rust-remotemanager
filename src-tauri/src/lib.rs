@@ -4,6 +4,9 @@
 //! including the Tauri application setup, database initialization, state management,
 //! IPC command handlers, and SSH session management.
 
+#[cfg(test)]
+mod test_support;
+
 mod commands;
 mod error;
 mod logging;

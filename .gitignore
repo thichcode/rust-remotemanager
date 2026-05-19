@@ -27,3 +27,15 @@ src-tauri/gen/
 
 # Logs
 *.log
+
+# Test artifacts
+.e2e-artifacts/
+.test-appdata/
+screenshots/
+traces/
+test/backend/target/
+e2e/docker/
+
+# Temporary build artifacts
+*.tmp
+.Dockerignore

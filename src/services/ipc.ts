@@ -15,9 +15,25 @@ import type {
 
 // ─── Helper ─────────────────────────────────────────────────────────────────
 
+type InvokeAdapter = <T>(method: string, args?: Record<string, unknown>) => Promise<T>;
+type ListenAdapter = <T>(event: string, handler: (event: { payload: T }) => void) => Promise<UnlistenFn>;
+
+let invokeAdapter: InvokeAdapter = invoke;
+let listenAdapter: ListenAdapter = listen;
+
+export function __setIpcTestAdapters(adapters: { invoke?: InvokeAdapter; listen?: ListenAdapter }): void {
+  if (adapters.invoke) invokeAdapter = adapters.invoke;
+  if (adapters.listen) listenAdapter = adapters.listen;
+}
+
+export function __resetIpcTestAdapters(): void {
+  invokeAdapter = invoke;
+  listenAdapter = listen;
+}
+
 async function tauriInvoke<T>(method: string, args?: Record<string, unknown>): Promise<IpcResult<T>> {
   try {
-    const result = await invoke<T>(method, args);
+    const result = await invokeAdapter<T>(method, args);
     return { success: true, data: result };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
@@ -272,7 +288,7 @@ export async function listenToTerminalOutput(
   id: string,
   callback: (event: TerminalOutputEvent) => void,
 ): Promise<UnlistenFn> {
-  return listen<TerminalOutputEvent>(`terminal:output-${id}`, (event) => {
+  return listenAdapter<TerminalOutputEvent>(`terminal:output-${id}`, (event) => {
     callback(event.payload);
   });
 }
@@ -281,7 +297,7 @@ export async function listenToTerminalConnected(
   id: string,
   callback: (payload: { id: string; cols: number; rows: number }) => void,
 ): Promise<UnlistenFn> {
-  return listen<{ id: string; cols: number; rows: number }>(`terminal:connected-${id}`, (event) => {
+  return listenAdapter<{ id: string; cols: number; rows: number }>(`terminal:connected-${id}`, (event) => {
     callback(event.payload);
   });
 }
@@ -290,7 +306,7 @@ export async function listenToTerminalError(
   id: string,
   callback: (payload: { id: string; error: string }) => void,
 ): Promise<UnlistenFn> {
-  return listen<{ id: string; error: string }>(`terminal:error-${id}`, (event) => {
+  return listenAdapter<{ id: string; error: string }>(`terminal:error-${id}`, (event) => {
     callback(event.payload);
   });
 }
@@ -299,7 +315,7 @@ export async function listenToTerminalExit(
   id: string,
   callback: (payload: { id: string }) => void,
 ): Promise<UnlistenFn> {
-  return listen<{ id: string }>(`terminal:exit-${id}`, (event) => {
+  return listenAdapter<{ id: string }>(`terminal:exit-${id}`, (event) => {
     callback(event.payload);
   });
 }
