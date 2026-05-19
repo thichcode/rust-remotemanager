@@ -37,8 +37,13 @@ export function useTerminal({ sessionId, onData }: UseTerminalOptions): UseTermi
 
   // Create terminal
   useEffect(() => {
-    if (!terminalRef.current) return;
+    console.log('[useTerminal] creating terminal, sessionId:', sessionId);
+    if (!terminalRef.current) {
+      console.log('[useTerminal] terminalRef.current is null, skipping');
+      return;
+    }
 
+    console.log('[useTerminal] opening xterm...');
     const term = new Terminal({
       cursorBlink: true,
       cursorStyle: 'block',
@@ -89,22 +94,28 @@ export function useTerminal({ sessionId, onData }: UseTerminalOptions): UseTermi
     terminalInstance.current = term;
 
     // Open terminal in container
+    console.log('[useTerminal] calling term.open()...');
     term.open(terminalRef.current);
+    console.log('[useTerminal] term.open() done, scheduling fit...');
 
     // Fit to container
     setTimeout(() => {
+      console.log('[useTerminal] fit timeout fired, sessionId:', sessionId);
       try {
         fitAddon.fit();
-      } catch {
-        // Ignore fit errors
+        console.log('[useTerminal] fit() succeeded');
+      } catch (e) {
+        console.error('[useTerminal] fit() error:', e);
       }
       setIsReady(true);
       // Flush any output buffered before terminal was ready, then register
       // a writer so future pushOutput calls go directly to xterm.
       if (sessionId) {
-        const writer = (data: string) => { try { term.write(data); } catch { /* ignore */ } };
+        console.log('[useTerminal] flushing buffer for', sessionId);
+        const writer = (data: string) => { try { term.write(data); } catch (e) { console.error('[useTerminal] write error:', e); } };
         flushBuffer(sessionId, writer);
         setWriter(sessionId, writer);
+        console.log('[useTerminal] writer registered');
       }
     }, 50);
 
@@ -147,10 +158,12 @@ export function useTerminal({ sessionId, onData }: UseTerminalOptions): UseTermi
 
     // Cleanup
     return () => {
+      console.log('[useTerminal] cleanup, sessionId:', sessionId);
       if (resizeTimeout) clearTimeout(resizeTimeout);
       window.removeEventListener('resize', handleWindowResize);
       document.removeEventListener('keydown', handleKeyDown);
       term.dispose();
+      console.log('[useTerminal] term disposed');
       terminalInstance.current = null;
       fitAddonInstance.current = null;
       searchAddonInstance.current = null;
@@ -163,27 +176,34 @@ export function useTerminal({ sessionId, onData }: UseTerminalOptions): UseTermi
   // Handle data events from terminal input
   useEffect(() => {
     const term = terminalInstance.current;
-    if (!term) return;
+    if (!term) {
+      console.log('[useTerminal] onData effect: term not ready, skipping');
+      return;
+    }
 
+    console.log('[useTerminal] registering onData handler, sessionId:', sessionId);
     const disposable = term.onData((data: string) => {
       if (sessionId) {
+        console.log('[useTerminal] onData:', JSON.stringify(data).substring(0, 80));
         terminalInput(sessionId, data);
       }
       onData?.(data);
     });
 
     return () => {
+      console.log('[useTerminal] removing onData handler');
       disposable.dispose();
     };
   }, [sessionId, onData]);
 
   // Fit terminal when search visibility changes
   useEffect(() => {
+    console.log('[useTerminal] search visible changed, re-fitting...');
     setTimeout(() => {
       try {
         fitAddonInstance.current?.fit();
-      } catch {
-        // ignore
+      } catch (e) {
+        console.error('[useTerminal] search fit error:', e);
       }
     }, 100);
   }, [searchVisible]);

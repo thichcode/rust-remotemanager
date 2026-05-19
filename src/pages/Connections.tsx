@@ -148,14 +148,16 @@ export default function Connections() {
   };
 
   const handleConnect = async (connection: Connection) => {
-    console.log('[Connections] handleConnect start:', connection.name, connection.host);
+    console.log('[Connections] handleConnect start:', connection.name, connection.host, 'type:', connection.type);
     try {
       if (connection.type === 'rdp') {
+        console.log('[Connections] RDP connection, launching...');
         const result = await connectRDP({
           host: connection.host,
           port: connection.port,
           username: connection.username,
         });
+        console.log('[Connections] connectRDP result:', JSON.stringify(result));
         if (result.success) {
           toast.success(`RDP connection to ${connection.host} launched`);
         } else {
@@ -170,9 +172,8 @@ export default function Connections() {
         port: connection.port,
         username: connection.username,
         authType: connection.authType,
-        credentialId: connection.credentialId,
+        ...(connection.credentialId ? { credentialId: connection.credentialId } : {}),
       });
-
       console.log('[Connections] connectSSH result:', JSON.stringify(result));
 
       if (result.success && result.data) {

@@ -17,15 +17,24 @@ export default function TerminalPage() {
   const { sessions, updateSessionState, removeSession } = useSessionStore();
 
   const session = sessions.find((s) => s.id === sessionId);
+  console.log('[TerminalPage] mounted, sessionId:', sessionId, 'session:', session ? 'found' : 'NOT FOUND', 'state:', session?.state);
 
   // Listen to Rust-side state change events and sync to store
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      console.log('[TerminalPage] no sessionId, skipping setup');
+      return;
+    }
+
+    console.log('[TerminalPage] setting up listeners for', sessionId);
 
     // Fallback: sync state from Rust in case events were already emitted before mount
     (async () => {
+      console.log('[TerminalPage] fetching getSessionState for', sessionId);
       const result = await getSessionState(sessionId);
+      console.log('[TerminalPage] getSessionState result:', JSON.stringify(result));
       if (result.success && result.data) {
+        console.log('[TerminalPage] updating session state to:', result.data);
         updateSessionState(sessionId, result.data as TerminalSessionState);
       }
     })();
@@ -35,32 +44,36 @@ export default function TerminalPage() {
     let exitUnlisten: (() => void) | undefined;
 
     const setup = async () => {
-      // Note: terminal:output listener is registered in Connections.tsx (before
-      // navigation) to avoid losing events. Output data goes through
-      // outputBuffer.ts global buffer, flushed by useTerminal when xterm is ready.
+      console.log('[TerminalPage] registering event listeners...');
 
       connectedUnlisten = await listenToTerminalConnected(sessionId, (payload) => {
+        console.log('[TerminalPage] terminal:connected received:', JSON.stringify(payload));
         if (payload.id === sessionId) {
           updateSessionState(sessionId, 'connected');
         }
       });
 
       errorUnlisten = await listenToTerminalError(sessionId, (payload) => {
+        console.log('[TerminalPage] terminal:error received:', JSON.stringify(payload));
         if (payload.id === sessionId) {
           updateSessionState(sessionId, 'error');
         }
       });
 
       exitUnlisten = await listenToTerminalExit(sessionId, (payload) => {
+        console.log('[TerminalPage] terminal:exit received:', JSON.stringify(payload));
         if (payload.id === sessionId) {
           updateSessionState(sessionId, 'disconnected');
         }
       });
+
+      console.log('[TerminalPage] all listeners registered');
     };
 
     setup();
 
     return () => {
+      console.log('[TerminalPage] cleanup, removing listeners for', sessionId);
       connectedUnlisten?.();
       errorUnlisten?.();
       exitUnlisten?.();
@@ -68,10 +81,13 @@ export default function TerminalPage() {
   }, [sessionId, updateSessionState]);
 
   const handleClose = async () => {
+    console.log('[TerminalPage] handleClose called, sessionId:', sessionId);
     if (sessionId) {
       await disconnectSession(sessionId);
+      console.log('[TerminalPage] disconnectSession done, removing from store');
       removeSession(sessionId);
     }
+    console.log('[TerminalPage] navigating to /connections');
     navigate('/connections');
   };
 
