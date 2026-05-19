@@ -334,7 +334,8 @@ fn run_ssh_session(
         }
     };
 
-    let mut buf = [0u8; 4096];
+    let mut buf = [0u8; 8192];
+    let mut line_buf = String::new();
     let mut keepalive_counter: u32 = 0;
 
     // ── Main I/O loop ──────────────────────────────────────────────
@@ -371,12 +372,23 @@ fn run_ssh_session(
             break;
         }
 
-        // 2. Read stdout from the channel (non-blocking).
+// 2. Read stdout from the channel (non-blocking).
         loop {
             match channel.read(&mut buf) {
                 Ok(0) => {
                     // EOF from remote side — shell likely exited.
                     tracing::info!("[{}] EOF on stdout", id);
+                    if !line_buf.is_empty() {
+                        let data = std::mem::take(&mut line_buf);
+                        if output_ready.load(Ordering::SeqCst) {
+                            let _ = app_handle.emit(
+                                &format!("terminal:output-{}", id),
+                                serde_json::json!({ "id": id, "data": data }),
+                            );
+                        } else {
+                            output_buffer.lock().unwrap().push_back(data);
+                        }
+                    }
                     let _ = app_handle.emit(
                         &format!("terminal:exit-{}", id),
                         serde_json::json!({ "id": id }),
@@ -385,18 +397,18 @@ fn run_ssh_session(
                     return;
                 }
                 Ok(n) => {
-                    let data = String::from_utf8_lossy(&buf[..n]).to_string();
-                    tracing::debug!("[{}] read {} bytes, output_ready={}", id, n, output_ready.load(Ordering::SeqCst));
-                    if output_ready.load(Ordering::SeqCst) {
-                        let result = app_handle.emit(
-                            &format!("terminal:output-{}", id),
-                            serde_json::json!({ "id": id, "data": data }),
-                        );
-                        tracing::debug!("[{}] emit terminal:output result: {:?}", id, result.is_ok());
-                    } else {
-                        output_buffer.lock().unwrap().push_back(data);
+                    line_buf.push_str(&String::from_utf8_lossy(&buf[..n]));
+                    if line_buf.len() >= 4096 {
+                        let data = std::mem::take(&mut line_buf);
+                        if output_ready.load(Ordering::SeqCst) {
+                            let _ = app_handle.emit(
+                                &format!("terminal:output-{}", id),
+                                serde_json::json!({ "id": id, "data": data }),
+                            );
+                        } else {
+                            output_buffer.lock().unwrap().push_back(data);
+                        }
                     }
-                    // Try to read more in the same batch.
                     continue;
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
@@ -413,6 +425,19 @@ fn run_ssh_session(
                 }
             }
             break;
+        }
+
+        // Drain remaining line_buf on EOF or WouldBlock (flush partial batch)
+        if !line_buf.is_empty() {
+            let data = std::mem::take(&mut line_buf);
+            if output_ready.load(Ordering::SeqCst) {
+                let _ = app_handle.emit(
+                    &format!("terminal:output-{}", id),
+                    serde_json::json!({ "id": id, "data": data }),
+                );
+            } else {
+                output_buffer.lock().unwrap().push_back(data);
+            }
         }
 
         // 3. Read stderr from the channel (non-blocking).
