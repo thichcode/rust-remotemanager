@@ -127,6 +127,8 @@ E2E testing requires Docker + WebDriverIO. See `implementation_plan.md` for full
 - `e2e/specs/tunnels.e2e.ts` — tunnel create/list/stop
 - `e2e/specs/settings.e2e.ts` — theme, settings persistence
 
+**Note**: E2E tests are planned but not yet implemented in this version. The test scripts `test:e2e:smoke`, `test:e2e:remote`, `test:e2e`, and `test:full` are placeholders that provide guidance on what will be implemented.
+
 Docker test server: `e2e/docker/ssh-server/` (Dockerfile + docker-compose.yml)
 
 ## Environment Variables
