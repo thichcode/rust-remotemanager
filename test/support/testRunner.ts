@@ -14,12 +14,19 @@ export async function runTests(suiteName = 'Tests', cases: TestCase[] = tests): 
   let passed = 0;
 
   for (const t of cases) {
-    await t.run();
-    passed += 1;
-    console.log(`✓ ${t.name}`);
+    try {
+      await t.run();
+      passed += 1;
+      console.log(`✓ ${t.name}`);
+    } catch (error) {
+      console.error(`✗ ${t.name}: ${error}`);
+    }
   }
 
   console.log(`\n${suiteName}: ${passed}/${cases.length} passed`);
+  if (passed !== cases.length) {
+    throw new Error(`${cases.length - passed} test(s) failed`);
+  }
 }
 
 export function failOnError(error: unknown): never {

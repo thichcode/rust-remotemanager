@@ -7,9 +7,23 @@ const files = [
   'test/ipc-contract.test.ts'
 ];
 
-for (const file of files) {
-  const result = spawnSync(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['tsx', file], { stdio: 'inherit' });
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
+function runTestFile(file: string): boolean {
+  if (process.platform === 'win32') {
+    const result = spawnSync('cmd.exe', ['/c', 'npx', 'tsx', file], { stdio: 'inherit' });
+    return result.status === 0 || result.status === null;
   }
+  const result = spawnSync('npx', ['tsx', file], { stdio: 'inherit' });
+  return result.status === 0 || result.status === null;
+}
+
+let allPassed = true;
+for (const file of files) {
+  const passed = runTestFile(file);
+  if (!passed) {
+    console.error(`${file} FAILED`);
+    allPassed = false;
+  }
+}
+if (!allPassed) {
+  process.exit(1);
 }
