@@ -41,6 +41,14 @@ jobs:
         with:
           workspaces: src-tauri
 
+      - name: Ensure frontendDist exists for Tauri macros
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          if (-not (Test-Path "dist/index.html")) {
+            "<html><body>ci-placeholder</body></html>" | Out-File -FilePath dist/index.html -Encoding utf8
+          }
+
       - name: Run SSH-focused tests
         working-directory: src-tauri
         run: cargo test ssh::session::tests --no-fail-fast
@@ -61,6 +69,14 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+
+      - name: Ensure frontendDist exists for Tauri macros
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          if (-not (Test-Path "dist/index.html")) {
+            "<html><body>ci-placeholder</body></html>" | Out-File -FilePath dist/index.html -Encoding utf8
+          }
 
       - name: Run RDP-focused tests
         working-directory: src-tauri
