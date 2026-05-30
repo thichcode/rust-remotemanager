@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -32,13 +32,21 @@ jobs:
           workspaces: src-tauri
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --include=dev
+
+      - name: Verify TypeScript compiler is available
+        shell: pwsh
+        run: |
+          if (-not (Test-Path ".\node_modules\.bin\tsc.cmd")) {
+            throw "tsc.cmd not found in node_modules/.bin after npm ci"
+          }
+          .\node_modules\.bin\tsc.cmd --version
 
       - name: Build frontend
         run: npm run build
