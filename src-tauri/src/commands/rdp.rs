@@ -13,8 +13,7 @@ pub struct RdpConfig {
     pub fullscreen: Option<bool>,
 }
 
-#[tauri::command]
-pub fn connect_rdp(config: RdpConfig) -> AppResult<String> {
+fn build_rdp_content(config: &RdpConfig) -> String {
     let port = config.port.unwrap_or(3389);
     let username = config.username.as_deref().unwrap_or("");
     let width = config.width.unwrap_or(1280);
@@ -61,6 +60,13 @@ pub fn connect_rdp(config: RdpConfig) -> AppResult<String> {
     rdp_content.push_str("disable themes:i:0\n");
     rdp_content.push_str("disable cursor setting:i:0\n");
 
+    rdp_content
+}
+
+#[tauri::command]
+pub fn connect_rdp(config: RdpConfig) -> AppResult<String> {
+    let rdp_content = build_rdp_content(&config);
+
     let temp_dir = std::env::temp_dir();
     let file_name = format!("hermes-rdp-{}.rdp", uuid::Uuid::new_v4());
     let rdp_path = temp_dir.join(&file_name);
@@ -97,4 +103,48 @@ pub fn connect_rdp(config: RdpConfig) -> AppResult<String> {
         "rdp_file": rdp_path_str,
     })
     .to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builds_rdp_content_with_defaults() {
+        let config = RdpConfig {
+            host: "127.0.0.1".into(),
+            port: None,
+            username: None,
+            domain: None,
+            width: None,
+            height: None,
+            fullscreen: None,
+        };
+
+        let content = build_rdp_content(&config);
+        assert!(content.contains("full address:s:127.0.0.1:3389"));
+        assert!(content.contains("screen mode id:i:1"));
+        assert!(content.contains("desktopwidth:i:1280"));
+        assert!(content.contains("desktopheight:i:720"));
+    }
+
+    #[test]
+    fn builds_rdp_content_fullscreen_and_identity() {
+        let config = RdpConfig {
+            host: "rdp.example.com".into(),
+            port: Some(3390),
+            username: Some("admin".into()),
+            domain: Some("CORP".into()),
+            width: Some(1920),
+            height: Some(1080),
+            fullscreen: Some(true),
+        };
+
+        let content = build_rdp_content(&config);
+        assert!(content.contains("full address:s:rdp.example.com:3390"));
+        assert!(content.contains("screen mode id:i:2"));
+        assert!(!content.contains("desktopwidth:i:1920"));
+        assert!(content.contains("username:s:admin"));
+        assert!(content.contains("domain:s:CORP"));
+    }
 }

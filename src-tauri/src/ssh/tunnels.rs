@@ -9,6 +9,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+/// Maximum number of simultaneous tunnels (prevents resource exhaustion).
+const MAX_TUNNELS: usize = 50;
+
 // ─── Data Types ──────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -60,12 +63,20 @@ impl TunnelManager {
 
     /// Start a local port forward: listen on local_host:local_port, forward TCP
     /// connections through the SSH session to remote_host:remote_port.
-    /// Uses blocking `accept()` for zero-wait wakeup (10µs poll interval).
+    /// Uses non-blocking accept with 50ms poll interval (was 100µs) — reduces
+    /// CPU from ~10,000 iterations/s to ~20 iterations/s when idle.
     pub fn add_local(
         &self,
         session: &ssh2::Session,
         config: TunnelConfig,
     ) -> AppResult<TunnelConfig> {
+        // Enforce maximum tunnel limit to prevent resource exhaustion
+        let current_count = self.tunnels.lock().map_err(|e| crate::error::AppError::Ssh(format!("Lock error: {}", e)))?.len();
+        if current_count >= MAX_TUNNELS {
+            return Err(crate::error::AppError::Validation(format!(
+                "Maximum number of tunnels ({}) reached", MAX_TUNNELS
+            )));
+        }
         let bind_addr = format!("{}:{}", config.local_host, config.local_port);
         let listener = TcpListener::bind(&bind_addr)?;
         listener
@@ -116,8 +127,8 @@ impl TunnelManager {
                             });
                         }
                         Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                            // Short sleep to prevent busy-wait — 100µs instead of 100ms
-                            thread::sleep(Duration::from_micros(100));
+                            // 50ms sleep instead of 100µs — 20 iterations/s idle instead of 10,000
+                            thread::sleep(Duration::from_millis(50));
                         }
                         Err(e) => {
                             if r.load(Ordering::Relaxed) {
@@ -157,6 +168,15 @@ impl TunnelManager {
         session: &ssh2::Session,
         config: TunnelConfig,
     ) -> AppResult<TunnelConfig> {
+        // Enforce maximum tunnel limit
+        {
+            let tunnels = self.tunnels.lock().map_err(|e| crate::error::AppError::Ssh(format!("Lock error: {}", e)))?;
+            if tunnels.len() >= MAX_TUNNELS {
+                return Err(crate::error::AppError::Validation(format!(
+                    "Maximum number of tunnels ({}) reached", MAX_TUNNELS
+                )));
+            }
+        }
         let running = Arc::new(AtomicBool::new(true));
         let r = running.clone();
         let sess = session.clone();
@@ -260,6 +280,15 @@ impl TunnelManager {
         session: &ssh2::Session,
         config: TunnelConfig,
     ) -> AppResult<TunnelConfig> {
+        // Enforce maximum tunnel limit
+        {
+            let tunnels = self.tunnels.lock().map_err(|e| crate::error::AppError::Ssh(format!("Lock error: {}", e)))?;
+            if tunnels.len() >= MAX_TUNNELS {
+                return Err(crate::error::AppError::Validation(format!(
+                    "Maximum number of tunnels ({}) reached", MAX_TUNNELS
+                )));
+            }
+        }
         let bind_addr = format!("{}:{}", config.local_host, config.local_port);
         let listener = TcpListener::bind(&bind_addr)?;
         listener
@@ -300,8 +329,8 @@ impl TunnelManager {
                             });
                         }
                         Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                            // 100µs poll interval instead of 100ms
-                            thread::sleep(Duration::from_micros(100));
+                            // 50ms poll interval — reduced from 100µs for ~500× CPU savings
+                            thread::sleep(Duration::from_millis(50));
                         }
                         Err(e) => {
                             if r.load(Ordering::Relaxed) {

@@ -1,6 +1,7 @@
 # Hermes Remote Manager
 
 ![Build Status](https://github.com/thichcode/rust-remotemanager/actions/workflows/build-windows.yml/badge.svg)
+![Remote Protocol Tests](https://github.com/thichcode/rust-remotemanager/actions/workflows/test-remote-protocols.yml/badge.svg)
 
 **Hermes Remote Manager** — A cross-platform desktop application for managing remote connections (SSH, RDP, Serial), with built-in terminal, SFTP file browser, port forwarding, and credential vault.
 

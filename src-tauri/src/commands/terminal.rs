@@ -81,7 +81,9 @@ pub fn connect_ssh(
     let session_id = Uuid::new_v4().to_string();
 
     let mut sessions = state.sessions.lock();
-    sessions.connect(config, app_handle, session_id.clone());
+    sessions
+        .connect(config, app_handle, session_id.clone())
+        .map_err(|e| AppError::Ssh(e))?;
     Ok(session_id)
 }
 

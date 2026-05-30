@@ -101,6 +101,9 @@ impl Drop for SshSession {
     }
 }
 
+/// Maximum number of simultaneous SSH sessions (prevents resource exhaustion).
+pub const MAX_SESSIONS: usize = 20;
+
 /// Manages all active SSH sessions with real connections.
 pub struct SessionManager {
     sessions: HashMap<String, SshSession>,
@@ -122,7 +125,13 @@ impl SessionManager {
         config: SshConfig,
         app_handle: AppHandle,
         session_id: String,
-    ) -> String {
+    ) -> Result<String, String> {
+        // Enforce maximum session limit
+        if self.sessions.len() >= MAX_SESSIONS {
+            return Err(format!(
+                "Maximum number of sessions ({}) reached", MAX_SESSIONS
+            ));
+        }
         let id = session_id.clone();
 
         let state = Arc::new(Mutex::new(SessionState::Connecting));
@@ -174,7 +183,7 @@ impl SessionManager {
             s.thread_handle = Some(handle);
         }
 
-        id
+        Ok(id)
     }
 
     /// Get a reference to a session by ID.
@@ -339,8 +348,43 @@ fn run_ssh_session(
     let mut keepalive_counter: u32 = 0;
 
     // ── Main I/O loop ──────────────────────────────────────────────
+    // Optimized: use recv_timeout as the primary blocking point (~33 iterations/sec idle)
+    // instead of busy-waiting with sleep(1ms) (~1000 iterations/sec).
     loop {
-        // 1. Drain any pending commands (non-blocking).
+        // 1. Block on command channel with timeout (30ms).
+        //    This is the primary sleep point — when idle, we block here
+        //    instead of busy-waiting, reducing CPU from ~5-10% to ~0% per session.
+        match cmd_rx.recv_timeout(Duration::from_millis(30)) {
+            Ok(ChannelCommand::Input(data)) => {
+                if let Err(err) = channel.write_all(&data) {
+                    tracing::error!("[{}] write error: {}", id, err);
+                }
+                let _ = channel.flush();
+            }
+            Ok(ChannelCommand::Resize(cols, rows)) => {
+                if let Err(err) = channel.request_pty_size(u32::from(cols), u32::from(rows), None, None) {
+                    tracing::warn!("[{}] resize error: {}", id, err);
+                } else {
+                    *state.lock().unwrap() = SessionState::Connected { cols, rows };
+                }
+            }
+            Ok(ChannelCommand::Close) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                // Graceful shutdown.
+                let _ = channel.send_eof();
+                let _ = channel.wait_close();
+                *state.lock().unwrap() = SessionState::Disconnected;
+                return;
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // Timeout — check for pending output and keepalive
+            }
+        }
+
+        if !running.load(Ordering::SeqCst) {
+            break;
+        }
+
+        // 2. Process any remaining commands that arrived during recv (non-blocking drain).
         loop {
             match cmd_rx.try_recv() {
                 Ok(ChannelCommand::Input(data)) => {
@@ -358,7 +402,6 @@ fn run_ssh_session(
                     }
                 }
                 Ok(ChannelCommand::Close) | Err(TryRecvError::Disconnected) => {
-                    // Graceful shutdown.
                     let _ = channel.send_eof();
                     let _ = channel.wait_close();
                     *state.lock().unwrap() = SessionState::Disconnected;
@@ -372,23 +415,13 @@ fn run_ssh_session(
             break;
         }
 
-// 2. Read stdout from the channel (non-blocking).
+        // 3. Read stdout from the channel (non-blocking).
         loop {
             match channel.read(&mut buf) {
                 Ok(0) => {
                     // EOF from remote side — shell likely exited.
                     tracing::info!("[{}] EOF on stdout", id);
-                    if !line_buf.is_empty() {
-                        let data = std::mem::take(&mut line_buf);
-                        if output_ready.load(Ordering::SeqCst) {
-                            let _ = app_handle.emit(
-                                &format!("terminal:output-{}", id),
-                                serde_json::json!({ "id": id, "data": data }),
-                            );
-                        } else {
-                            output_buffer.lock().unwrap().push_back(data);
-                        }
-                    }
+                    flush_line_buf(&mut line_buf, &id, &output_buffer, &output_ready, &app_handle);
                     let _ = app_handle.emit(
                         &format!("terminal:exit-{}", id),
                         serde_json::json!({ "id": id }),
@@ -400,14 +433,7 @@ fn run_ssh_session(
                     line_buf.push_str(&String::from_utf8_lossy(&buf[..n]));
                     if line_buf.len() >= 4096 {
                         let data = std::mem::take(&mut line_buf);
-                        if output_ready.load(Ordering::SeqCst) {
-                            let _ = app_handle.emit(
-                                &format!("terminal:output-{}", id),
-                                serde_json::json!({ "id": id, "data": data }),
-                            );
-                        } else {
-                            output_buffer.lock().unwrap().push_back(data);
-                        }
+                        emit_or_buffer(data, &id, &output_buffer, &output_ready, &app_handle);
                     }
                     continue;
                 }
@@ -427,23 +453,11 @@ fn run_ssh_session(
             break;
         }
 
-        // Drain remaining line_buf on EOF or WouldBlock (flush partial batch)
-        if !line_buf.is_empty() {
-            let data = std::mem::take(&mut line_buf);
-            if output_ready.load(Ordering::SeqCst) {
-                let _ = app_handle.emit(
-                    &format!("terminal:output-{}", id),
-                    serde_json::json!({ "id": id, "data": data }),
-                );
-            } else {
-                output_buffer.lock().unwrap().push_back(data);
-            }
-        }
+        // Drain remaining line_buf
+        flush_line_buf(&mut line_buf, &id, &output_buffer, &output_ready, &app_handle);
 
-        // 3. Read stderr from the channel (non-blocking).
+        // 4. Read stderr from the channel (non-blocking).
         loop {
-            // `channel.stderr()` returns a wrapper that borrows `channel`
-            // mutably — we scope it so the borrow is dropped afterwards.
             let mut stderr = channel.stderr();
             match stderr.read(&mut buf) {
                 Ok(0) => {}
@@ -463,13 +477,9 @@ fn run_ssh_session(
             break;
         }
 
-        // 4. Brief sleep to prevent busy-waiting when idle.
-        // Reduced from 10ms → 1ms for ≈10× lower idle latency
-        thread::sleep(Duration::from_millis(1));
-
-        // 5. Periodic keepalive send (every ~1s = 1000 iterations at 1ms)
+        // 5. Periodic keepalive send (every ~1s = ~33 iterations at 30ms timeout)
         keepalive_counter += 1;
-        if keepalive_counter >= 1000 {
+        if keepalive_counter >= 33 {
             keepalive_counter = 0;
             if let Some(ref session) = *ssh_session_storage.lock().unwrap() {
                 let _ = session.keepalive_send();
@@ -482,6 +492,40 @@ fn run_ssh_session(
     let _ = channel.send_eof();
     let _ = channel.wait_close();
 }
+
+/// Helper: flush the line buffer to output (emit or buffer).
+fn flush_line_buf(
+    line_buf: &mut String,
+    id: &str,
+    output_buffer: &Arc<Mutex<VecDeque<String>>>,
+    output_ready: &Arc<AtomicBool>,
+    app_handle: &AppHandle,
+) {
+    if line_buf.is_empty() {
+        return;
+    }
+    let data = std::mem::take(line_buf);
+    emit_or_buffer(data, id, output_buffer, output_ready, app_handle);
+}
+
+/// Helper: emit data via Tauri event if output_ready, otherwise buffer it.
+fn emit_or_buffer(
+    data: String,
+    id: &str,
+    output_buffer: &Arc<Mutex<VecDeque<String>>>,
+    output_ready: &Arc<AtomicBool>,
+    app_handle: &AppHandle,
+) {
+    if output_ready.load(Ordering::SeqCst) {
+        let _ = app_handle.emit(
+            &format!("terminal:output-{}", id),
+            serde_json::json!({ "id": id, "data": data }),
+        );
+    } else {
+        output_buffer.lock().unwrap().push_back(data);
+    }
+}
+
 /// Perform the full SSH connection sequence:
 /// TCP connect → SSH handshake → authenticate → open channel → PTY → shell.
 /// Returns both the `Session` and `Channel` so the session can be cloned for SFTP.

@@ -116,6 +116,29 @@ mod tests {
 | `scripts/test-app.ps1` | Comprehensive: phases, log analysis, git status |
 | `scripts/parse-logs.ps1` | Parse Rust logs for errors/warnings |
 
+## GitHub Actions
+
+Current workflows:
+
+| Workflow | Purpose |
+|----------|---------|
+| `.github/workflows/build-windows.yml` | Build frontend + Tauri app + publish artifacts |
+| `.github/workflows/test-remote-protocols.yml` | Remote protocol-focused tests for SSH and RDP |
+
+### Remote Protocol Workflow (`test-remote-protocols.yml`)
+
+- **`ssh-tests` (ubuntu-latest)**
+  - Runs Rust SSH-focused tests: `cargo test ssh::session::tests --no-fail-fast`
+- **`rdp-tests` (windows-latest)**
+  - Verifies `mstsc` availability on runner
+  - Runs Rust RDP-focused tests: `cargo test rdp::tests --no-fail-fast`
+
+This gives CI coverage for:
+- SSH session manager behavior (unit/smoke level)
+- RDP configuration generation logic (contract/unit level)
+
+> Note: full GUI automation for native `mstsc` sessions is intentionally not part of CI.
+
 ## Planned: E2E Tests
 
 E2E testing requires Docker + WebDriverIO. See `implementation_plan.md` for full E2E specification. Planned:

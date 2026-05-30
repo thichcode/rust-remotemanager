@@ -1,0 +1,73 @@
+name: Test Remote Protocols
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/test-remote-protocols.yml'
+      - 'src-tauri/src/ssh/**'
+      - 'src-tauri/src/commands/terminal.rs'
+      - 'src-tauri/src/commands/rdp.rs'
+      - 'src-tauri/src/test_support.rs'
+      - 'src-tauri/Cargo.toml'
+      - 'docs/TESTING.md'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/test-remote-protocols.yml'
+      - 'src-tauri/src/ssh/**'
+      - 'src-tauri/src/commands/terminal.rs'
+      - 'src-tauri/src/commands/rdp.rs'
+      - 'src-tauri/src/test_support.rs'
+      - 'src-tauri/Cargo.toml'
+      - 'docs/TESTING.md'
+  workflow_dispatch:
+
+jobs:
+  ssh-tests:
+    name: SSH tests (Rust)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Run SSH-focused tests
+        working-directory: src-tauri
+        run: cargo test ssh::session::tests --no-fail-fast
+
+  rdp-tests:
+    name: RDP tests (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Verify mstsc is available
+        shell: pwsh
+        run: |
+          $mstsc = Get-Command mstsc -ErrorAction SilentlyContinue
+          if (-not $mstsc) {
+            throw "mstsc not found on runner"
+          }
+          Write-Host "mstsc path: $($mstsc.Source)"
+
+      - name: Run RDP-focused tests
+        working-directory: src-tauri
+        shell: pwsh
+        run: cargo test rdp::tests --no-fail-fast
