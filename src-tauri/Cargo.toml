@@ -29,6 +29,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 rfd = "0.14"
 parking_lot = "0.12"
+dioxus = { version = "0.6", features = ["desktop"] }
+dioxus-router = "0.6"
+termwiz = "0.22"
 
 [lib]
 name = "hermes_remote_manager_lib"
