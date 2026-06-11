@@ -131,8 +131,11 @@ pub fn run() {
 
             app.manage(state);
 
-            // Launch Dioxus desktop UI
-            tauri::async_runtime::spawn(async move {
+            // Launch Dioxus UI in a separate thread
+            let app_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                // Wait a bit for Tauri to fully initialize
+                std::thread::sleep(std::time::Duration::from_millis(100));
                 dioxus::launch(crate::ui::App);
             });
 
