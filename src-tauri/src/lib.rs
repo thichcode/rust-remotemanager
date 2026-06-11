@@ -14,6 +14,7 @@ mod security;
 mod settings;
 pub mod ssh;
 mod storage;
+mod ui;
 
 use parking_lot::Mutex;
 use rusqlite::Connection;
