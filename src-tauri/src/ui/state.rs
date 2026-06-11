@@ -1,22 +1,44 @@
-#[derive(Clone, Debug, PartialEq)]
-pub struct UiState {
-    pub current_page: Page,
-    pub sidebar_collapsed: bool,
+use std::sync::Arc;
+use parking_lot::Mutex;
+use crate::storage::database::Database;
+use crate::ssh::session::SessionManager;
+use crate::ssh::tunnels::TunnelManager;
+use crate::security::vault::Vault;
+use crate::settings::SettingsManager;
+
+/// Persistent backend state for the application.
+///
+/// Reactive UI state (connections, folders, active session, theme, etc.)
+/// should be managed with `use_signal` at the component level, not here.
+#[derive(Clone)]
+pub struct AppState {
+    pub db: Arc<Mutex<Database>>,
+    pub vault: Arc<Mutex<Vault>>,
+    pub sessions: Arc<Mutex<SessionManager>>,
+    pub tunnels: Arc<Mutex<TunnelManager>>,
+    pub settings: Arc<Mutex<SettingsManager>>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum Page {
-    Dashboard,
-    Connections,
-    Terminal,
-    Settings,
+#[derive(Clone, Copy, PartialEq)]
+pub enum ThemeMode {
+    Dark,
+    Light,
 }
 
-impl Default for UiState {
-    fn default() -> Self {
+impl AppState {
+    pub fn new(
+        db: Arc<Mutex<Database>>,
+        vault: Arc<Mutex<Vault>>,
+        sessions: Arc<Mutex<SessionManager>>,
+        tunnels: Arc<Mutex<TunnelManager>>,
+        settings: Arc<Mutex<SettingsManager>>,
+    ) -> Self {
         Self {
-            current_page: Page::Dashboard,
-            sidebar_collapsed: false,
+            db,
+            vault,
+            sessions,
+            tunnels,
+            settings,
         }
     }
 }
