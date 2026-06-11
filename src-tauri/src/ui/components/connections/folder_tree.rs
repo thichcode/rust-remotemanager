@@ -3,12 +3,8 @@ use dioxus::prelude::*;
 #[component]
 pub fn FolderTree() -> Element {
     rsx! {
-        div { class: "folder-tree",
-            h3 { "Folders" }
-            ul {
-                li { "All Connections" }
-                li { "Favorites" }
-            }
+        div { class: "space-y-1",
+            div { class: "px-2 py-1 text-gray-400", "No folders" }
         }
     }
 }
