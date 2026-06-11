@@ -1,4 +1,4 @@
-name: Build Windows
+name: Build & Release
 
 on:
   push:
@@ -16,11 +16,12 @@ jobs:
     runs-on: windows-latest
     env:
       RUST_BACKTRACE: 1
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # Full history for changelog
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -32,53 +33,48 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --include=dev
-
-      - name: Verify TypeScript compiler is available
-        shell: pwsh
-        run: |
-          if (-not (Test-Path ".\node_modules\.bin\tsc.cmd")) {
-            throw "tsc.cmd not found in node_modules/.bin after npm ci"
-          }
-          .\node_modules\.bin\tsc.cmd --version
-
-      - name: Build frontend
-        run: npm run build
-
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2"
 
       - name: Build Tauri App
-        run: npx tauri build
+        run: cargo tauri build
 
-      - name: Build portable zip
+      - name: Generate Changelog
+        if: startsWith(github.ref, 'refs/tags/')
+        id: changelog
         shell: pwsh
         run: |
+          $tag = "${{ github.ref_name }}"
+          $prevTag = git tag --sort=-v:refname | Select-Object -Skip 1 -First 1
+          
+          if ($prevTag) {
+            $commits = git log "$prevTag..$tag" --pretty=format:"- %s (%h)" --no-merges
+          } else {
+            $commits = git log --pretty=format:"- %s (%h)" --no-merges -20
+          }
+          
           $version = (Get-Content src-tauri/Cargo.toml | Select-String '^\s*version\s*=').Line.Split('"')[1]
-          & ".\scripts\portable-zip.ps1" -Version $version
-
-      - name: Upload Portable Zip
-        uses: actions/upload-artifact@v4
-        with:
-          name: hermes-remote-manager-portable
-          path: artifacts/*.zip
-          if-no-files-found: error
-
-      - name: Upload Installer Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: hermes-remote-manager-windows
-          path: |
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/nsis/*.exe
-          if-no-files-found: error
+          
+          $changelog = @"
+          ## Hermes Remote Manager $tag
+          
+          ### What's Changed
+          $commits
+          
+          ### Downloads
+          - **Windows Installer (NSIS):** HermesRemoteManager_${version}_x64-setup.exe
+          - **Windows MSI:** hermes-remote-manager_${version}_x64_en-US.msi
+          - **Portable:** hermes-remote-manager-${version}-portable.zip
+          
+          ### Install
+          1. Download the installer or portable zip
+          2. Run the installer or extract the portable zip
+          3. Launch Hermes Remote Manager
+          "@
+          
+          $changelog | Out-File -FilePath CHANGELOG_RELEASE.md -Encoding utf8
+          Write-Host "Changelog generated:"
+          Get-Content CHANGELOG_RELEASE.md
 
       - name: Debug release files
         if: startsWith(github.ref, 'refs/tags/')
@@ -86,16 +82,22 @@ jobs:
         run: |
           Write-Host "== Bundle files =="
           Get-ChildItem -Path src-tauri/target/release/bundle -Recurse -File | Select-Object FullName
-          Write-Host "== Portable artifacts =="
-          Get-ChildItem -Path artifacts -Recurse -File | Select-Object FullName
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hermes-remote-manager-windows
+          path: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: warn
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          body_path: CHANGELOG_RELEASE.md
           files: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe
-            artifacts/*.zip
-          generate_release_notes: true
-          fail_on_unmatched_files: true
+          fail_on_unmatched_files: false

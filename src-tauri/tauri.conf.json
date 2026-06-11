@@ -3,10 +3,7 @@
   "productName": "Hermes Remote Manager",
   "version": "0.1.0",
   "identifier": "com.hermes.remote-manager",
-  "build": {
-    "devUrl": "http://localhost:1420",
-    "frontendDist": "../dist"
-  },
+  "build": {},
   "app": {
     "windows": [
       {

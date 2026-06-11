@@ -131,6 +131,11 @@ pub fn run() {
 
             app.manage(state);
 
+            // Launch Dioxus desktop UI
+            tauri::async_runtime::spawn(async move {
+                dioxus::launch(crate::ui::App);
+            });
+
             tracing::info!("Hermes Remote Manager initialized successfully");
             Ok(())
         })

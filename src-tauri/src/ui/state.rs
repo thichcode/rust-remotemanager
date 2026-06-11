@@ -17,6 +17,7 @@ pub struct AppState {
     pub sessions: Arc<Mutex<SessionManager>>,
     pub tunnels: Arc<Mutex<TunnelManager>>,
     pub settings: Arc<Mutex<SettingsManager>>,
+    pub sidebar_collapsed: Arc<Mutex<bool>>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -39,6 +40,7 @@ impl AppState {
             sessions,
             tunnels,
             settings,
+            sidebar_collapsed: Arc::new(Mutex::new(false)),
         }
     }
 }

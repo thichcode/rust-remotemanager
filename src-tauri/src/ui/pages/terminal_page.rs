@@ -1,11 +1,11 @@
 use dioxus::prelude::*;
+use crate::ui::components::terminal::terminal_session::TerminalSession;
 
 #[component]
-pub fn TerminalPage() -> Element {
+pub fn TerminalPage(session_id: String) -> Element {
     rsx! {
-        div { class: "terminal-page",
-            h1 { "Terminal" }
-            p { "SSH terminal sessions" }
+        div { class: "h-full",
+            TerminalSession { session_id: session_id.clone() }
         }
     }
 }
